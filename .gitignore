@@ -1,0 +1,7 @@
+/repos/
+/target/
+/.mooncakes/
+corpus/
+results/
+state/
+*.log
