@@ -68,7 +68,7 @@ mooncacke/
 |---|---|---|
 | `engine/` | 规则接口、结果收集、按文件类型分派 | `Rule`（id/severity/category/description/matcher_fn）、`Finding`（rule_id, file, line, snippet, message） |
 | `engine/matchers/` | 匹配原语：字面子串、多模式 Aho-Corasick（自实现）、行扫描、hex/base64 长度与字符集检测 | `Matcher::find(text) -> Array[Span]` |
-| `metadata/` | 解析 `moon.mod`/`moon.pkg`（toml/json 兼容读取；bobzhang/toml 为依赖候选）+ M 系列规则 | `ModuleInfo`, `PkgInfo` |
+| `metadata/` | 解析 `moon.mod`/`moon.pkg`（v1 手写极简解析器，不引入第三方 toml 依赖——安全工具自身避免供应链面）+ M 系列规则 | `ModuleInfo`, `PkgInfo` |
 | `source/` | S 系列源码规则，逐文件扫描 | 规则目录（见 §6） |
 | `score/` | `risk = Σ weight(severity)`，映射 verdict | `Verdict { Clean, Suspicious, Malicious }` |
 | `report/` | JSON 序列化（derive ToJson）+ 终端彩色摘要 | `Report { module, version, findings, risk, verdict }` |
@@ -92,7 +92,7 @@ mooncacke/
 |---|---|---|---|
 | M01 | typosquatting：包名对热门包名表（statistics CSV 生成）Damerau-Levenshtein ≤2 且非同一作者 | High | guarddog/PyPI |
 | M02 | 官方仿冒：名字含 `moonbitlang/` 前缀但作者 ≠ moonbitlang；仿 `core/async/x` 官方包名 | Critical | npm typo 规则 |
-| M03 | 空壳包：无 README/无测试/接口面极小却宣称大功能 | Medium | Maloss |
+| M03 | 空壳包：无 README 或 README < 200 字符，且无任何测试文件，且 README 声称提供库功能 | Medium | Maloss |
 | M04 | 元数据不一致：repository 指向不存在/不相关仓库 | Medium | OSSGadget |
 | M05 | 依赖混淆：依赖名与官方模块高度相似 | High | socket.dev |
 
