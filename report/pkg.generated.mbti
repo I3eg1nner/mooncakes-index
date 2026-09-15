@@ -1,11 +1,26 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "audit/mooncake-audit/report"
 
+import {
+  "audit/mooncake-audit/engine",
+  "moonbitlang/core/debug",
+}
+
 // Values
+pub fn human_summary(Report) -> String
 
 // Errors
 
 // Types and methods
+pub(all) struct Report {
+  module : String
+  version : String
+  risk : Int
+  verdict : String
+  findings : Array[@engine.Finding]
+  errors : Array[String]
+} derive(ToJson, @debug.Debug)
+pub fn Report::to_json_string(Self) -> String
 
 // Type aliases
 
