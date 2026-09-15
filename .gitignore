@@ -8,3 +8,5 @@ results/
 state/
 *.log
 .superpowers/
+__pycache__/
+*.pyc
