@@ -1,5 +1,14 @@
 import {
   "audit/mooncake-audit/engine",
+  "audit/mooncake-audit/engine/scan",
+  "audit/mooncake-audit/report",
+  "audit/mooncake-audit/score",
+  "moonbitlang/async",
+  "moonbitlang/async/fs",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
 }
 
 pkgtype(kind: "executable")
+
+warnings = "-reserved_keyword"
