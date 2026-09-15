@@ -85,7 +85,9 @@ test "S05 extern c medium" {
 ///|
 test "all source rules registry" {
   let rs = @source.all_source_rules()
-  inspect(rs.length(), content="5")
+  inspect(rs.length(), content="7")
   inspect(rs[0].0, content="S01")
   inspect(rs[4].0, content="S05")
+  inspect(rs[5].0, content="S07")
+  inspect(rs[6].0, content="S08")
 }

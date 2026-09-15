@@ -2,6 +2,7 @@
 package "audit/mooncake-audit/metadata"
 
 import {
+  "audit/mooncake-audit/engine",
   "moonbitlang/core/debug",
 }
 
@@ -11,6 +12,8 @@ pub fn parse_manifest(String) -> Manifest?
 pub fn parse_manifest_json(String) -> Manifest?
 
 pub fn parse_pkg(String) -> PkgInfo
+
+pub fn s06(PkgInfo, String) -> Array[@engine.Finding]
 
 // Errors
 

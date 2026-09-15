@@ -10,6 +10,12 @@ import {
 // Values
 pub fn all_source_rules() -> Array[(String, (SourceCtx) -> Array[@engine.Finding])]
 
+pub fn combine_rules(Array[@engine.Finding]) -> Array[@engine.Finding]
+
+pub fn is_source_file(String) -> Bool
+
+pub fn mkctx_for_test(String) -> SourceCtx
+
 pub fn s01(SourceCtx) -> Array[@engine.Finding]
 
 pub fn s02(SourceCtx) -> Array[@engine.Finding]
@@ -19,6 +25,10 @@ pub fn s03(SourceCtx) -> Array[@engine.Finding]
 pub fn s04(SourceCtx) -> Array[@engine.Finding]
 
 pub fn s05(SourceCtx) -> Array[@engine.Finding]
+
+pub fn s07(SourceCtx) -> Array[@engine.Finding]
+
+pub fn s08(SourceCtx) -> Array[@engine.Finding]
 
 // Errors
 
