@@ -1,0 +1,5 @@
+import {
+  "audit/mooncake-audit/engine",
+}
+
+pkgtype(kind: "executable")
