@@ -1,11 +1,32 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "audit/mooncake-audit/metadata"
 
+import {
+  "moonbitlang/core/debug",
+}
+
 // Values
+pub fn parse_manifest(String) -> Manifest?
+
+pub fn parse_manifest_json(String) -> Manifest?
+
+pub fn parse_pkg(String) -> PkgInfo
 
 // Errors
 
 // Types and methods
+pub(all) struct Manifest {
+  name : String
+  version : String
+  repository : String
+  readme : String
+  deps : Array[String]
+} derive(Eq, @debug.Debug)
+
+pub(all) struct PkgInfo {
+  imports : Array[String]
+  pre_build : Array[String]
+} derive(@debug.Debug)
 
 // Type aliases
 
