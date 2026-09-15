@@ -142,3 +142,20 @@ def test_fetch_bytes_retries_http_5xx_but_not_404(monkeypatch):
     with pytest.raises(reg.urllib.error.HTTPError):
         reg.fetch_bytes("http://example/")
     assert len(calls) == 1, "404 must not be retried"
+
+
+def test_download_url_quotes_special_chars():
+    # '+' in build-metadata versions must be %2B (raw '+' 404s on the CDN)
+    assert (
+        reg.download_url("bzy-debug/hello", "0.1.20240510+81e045f4e")
+        == "https://download.mooncakes.io/user/bzy-debug/hello/0.1.20240510%2B81e045f4e.zip"
+    )
+    # non-ascii module names must be percent-encoded, '/' preserved
+    assert reg.download_url("CAIMEOX/原来可以发中文包", "0.1.0").startswith(
+        "https://download.mooncakes.io/user/CAIMEOX/%E5%8E%9F"
+    )
+    # plain names unchanged
+    assert (
+        reg.download_url("a/b", "1.0.0")
+        == "https://download.mooncakes.io/user/a/b/1.0.0.zip"
+    )

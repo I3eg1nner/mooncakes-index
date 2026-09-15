@@ -3,6 +3,7 @@ import json
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 
@@ -50,7 +51,11 @@ def fetch_module_index() -> list[dict]:
 
 
 def download_url(name: str, version: str) -> str:
-    return f"{DL}/user/{name}/{version}.zip"
+    # quote is required: '+' in build-metadata versions must reach the server
+    # percent-encoded (%2B), and non-ascii module names (CJK, emoji) cannot be
+    # sent raw by urllib at all.
+    path = urllib.parse.quote(f"{name}/{version}.zip", safe="/")
+    return f"{DL}/user/{path}"
 
 
 def build_hotlist(path: str, modules: list[dict] | None = None, top_n: int = 100) -> list[str]:

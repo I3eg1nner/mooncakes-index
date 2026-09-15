@@ -33,7 +33,7 @@ def _has_manifest(pkg_dir: str) -> bool:
     return False
 
 
-def staged_extract(data: bytes, dest: str) -> None:
+def staged_extract(data: bytes, dest: str, max_files: int = 5_000, max_bytes: int = 50_000_000) -> None:
     """Extract an archive into `dest` via a per-pid staging directory.
 
     A crash mid-extract leaves only the staging dir behind; `dest` either
@@ -43,7 +43,7 @@ def staged_extract(data: bytes, dest: str) -> None:
     staging = f"{dest}.staging-{os.getpid()}"
     shutil.rmtree(staging, ignore_errors=True)
     try:
-        download.safe_extract(data, staging)
+        download.safe_extract(data, staging, max_files=max_files, max_bytes=max_bytes)
         if _has_manifest(dest):
             return  # another run already completed this package
         try:
@@ -67,6 +67,8 @@ def main() -> None:
     ap.add_argument("--hotlist", default=None, help="hotlist file (default: state/hotlist.txt)")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--rate", type=float, default=0.5)
+    ap.add_argument("--max-files", type=int, default=5_000, help="per-archive entry cap (raise for large modules)")
+    ap.add_argument("--max-bytes", type=int, default=50_000_000, help="per-archive size cap")
     args = ap.parse_args()
 
     index = registry.fetch_module_index()
@@ -88,7 +90,7 @@ def main() -> None:
         try:
             if not _has_manifest(pkg_dir):
                 data = registry.fetch_bytes(registry.download_url(name, version), args.rate)
-                staged_extract(data, pkg_dir)
+                staged_extract(data, pkg_dir, args.max_files, args.max_bytes)
             report = runner.scan_package(
                 args.engine, pkg_dir, hotlist, module=name, version=version
             )
