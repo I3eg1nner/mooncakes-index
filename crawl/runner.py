@@ -2,10 +2,21 @@ import json
 import subprocess
 
 
-def scan_package(engine_bin: str, pkg_dir: str, hotlist: str | None, timeout: int = 60) -> dict:
+def scan_package(
+    engine_bin: str,
+    pkg_dir: str,
+    hotlist: str | None,
+    timeout: int = 60,
+    module: str | None = None,
+    version: str | None = None,
+) -> dict:
     cmd = [engine_bin, "scan", pkg_dir, "--json"]
     if hotlist:
         cmd += ["--hotlist", hotlist]
+    if module:
+        cmd += ["--module", module]
+    if version:
+        cmd += ["--version", version]
     try:
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:

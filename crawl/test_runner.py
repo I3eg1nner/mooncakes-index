@@ -30,3 +30,23 @@ def test_scan_package_missing_binary(tmp_path):
     r = scan_package(str(tmp_path / "no_such_engine"), "/tmp/fakepkg", None, timeout=5)
     assert "error" in r
     assert r["module"] == "/tmp/fakepkg"
+
+
+def test_scan_package_passes_module_and_version(tmp_path):
+    engine = _write_engine(
+        tmp_path,
+        '#!/bin/sh\nprintf \'{"module":"x","args":"%s"}\\n\' "$*"\n',
+    )
+    r = scan_package(engine, "/tmp/fakepkg", None, module="evil/asynx", version="0.2.0")
+    assert "--module evil/asynx" in r["args"]
+    assert "--version 0.2.0" in r["args"]
+
+
+def test_scan_package_omits_module_flags_when_absent(tmp_path):
+    engine = _write_engine(
+        tmp_path,
+        '#!/bin/sh\nprintf \'{"module":"x","args":"%s"}\\n\' "$*"\n',
+    )
+    r = scan_package(engine, "/tmp/fakepkg", None)
+    assert "--module" not in r["args"]
+    assert "--version" not in r["args"]

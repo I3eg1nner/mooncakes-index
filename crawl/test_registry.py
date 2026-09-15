@@ -1,6 +1,8 @@
 import threading
 import time
 
+import pytest
+
 from crawl import registry as reg
 from crawl.registry import build_hotlist, download_url
 
@@ -70,3 +72,73 @@ def test_fetch_bytes_throttles(monkeypatch):
     monkeypatch.setattr(reg.urllib.request, "urlopen", lambda req, timeout: FakeResponse())
     assert reg.fetch_bytes("http://example/", rate_limit=0.25) == b"ok"
     assert calls == [0.25]
+
+
+class _FakeResponse:
+    def read(self):
+        return b"ok"
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+def test_fetch_bytes_retries_then_succeeds(monkeypatch):
+    monkeypatch.setattr(reg, "_throttle", lambda rate_limit: None)
+    attempts = []
+
+    def fake_urlopen(req, timeout):
+        attempts.append(1)
+        if len(attempts) < 3:
+            raise reg.urllib.error.URLError("transient")
+        return _FakeResponse()
+
+    sleeps = []
+    monkeypatch.setattr(reg.time, "sleep", sleeps.append)
+    monkeypatch.setattr(reg.urllib.request, "urlopen", fake_urlopen)
+    assert reg.fetch_bytes("http://example/") == b"ok"
+    assert len(attempts) == 3
+    assert sleeps == [0.5, 1.0]
+
+
+def test_fetch_bytes_persistent_failure_raises(monkeypatch):
+    monkeypatch.setattr(reg, "_throttle", lambda rate_limit: None)
+    attempts = []
+
+    def fake_urlopen(req, timeout):
+        attempts.append(1)
+        raise reg.urllib.error.URLError("down")
+
+    monkeypatch.setattr(reg.time, "sleep", lambda s: None)
+    monkeypatch.setattr(reg.urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(reg.urllib.error.URLError):
+        reg.fetch_bytes("http://example/")
+    assert len(attempts) == 1 + len(reg.RETRY_DELAYS)
+
+
+def test_fetch_bytes_retries_http_5xx_but_not_404(monkeypatch):
+    monkeypatch.setattr(reg, "_throttle", lambda rate_limit: None)
+    monkeypatch.setattr(reg.time, "sleep", lambda s: None)
+
+    calls = []
+
+    def five_oh_three(req, timeout):
+        calls.append(1)
+        raise reg.urllib.error.HTTPError(req.full_url, 503, "Service Unavailable", None, None)
+
+    monkeypatch.setattr(reg.urllib.request, "urlopen", five_oh_three)
+    with pytest.raises(reg.urllib.error.HTTPError):
+        reg.fetch_bytes("http://example/")
+    assert len(calls) == 1 + len(reg.RETRY_DELAYS)
+
+    def not_found(req, timeout):
+        calls.append(1)
+        raise reg.urllib.error.HTTPError(req.full_url, 404, "Not Found", None, None)
+
+    monkeypatch.setattr(reg.urllib.request, "urlopen", not_found)
+    calls.clear()
+    with pytest.raises(reg.urllib.error.HTTPError):
+        reg.fetch_bytes("http://example/")
+    assert len(calls) == 1, "404 must not be retried"

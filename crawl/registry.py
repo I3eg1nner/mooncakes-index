@@ -2,6 +2,7 @@ import io
 import json
 import threading
 import time
+import urllib.error
 import urllib.request
 import zipfile
 
@@ -10,6 +11,10 @@ DL = "https://download.mooncakes.io"
 UA = {"User-Agent": "mooncake-audit/0.1 (supply-chain research)"}
 _last_get = 0.0
 _lock = threading.Lock()
+
+# exponential backoff between fetch attempts (seconds); initial attempt plus
+# up to len(RETRY_DELAYS) retries. 4xx responses raise immediately (no retry).
+RETRY_DELAYS = (0.5, 1.0, 2.0)
 
 
 def _throttle(rate_limit: float, now_fn=time.monotonic, sleep_fn=time.sleep) -> None:
@@ -24,8 +29,20 @@ def _throttle(rate_limit: float, now_fn=time.monotonic, sleep_fn=time.sleep) -> 
 def fetch_bytes(url: str, rate_limit: float = 0.5) -> bytes:
     _throttle(rate_limit)
     req = urllib.request.Request(url, headers=UA)
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return r.read()
+    last_err: Exception | None = None
+    for i in range(len(RETRY_DELAYS) + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return r.read()
+        except urllib.error.HTTPError as e:
+            if not 500 <= e.code <= 599:
+                raise
+            last_err = e
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            last_err = e
+        if i < len(RETRY_DELAYS):
+            time.sleep(RETRY_DELAYS[i])  # backoff outside the rate-limit lock
+    raise last_err
 
 
 def fetch_module_index() -> list[dict]:

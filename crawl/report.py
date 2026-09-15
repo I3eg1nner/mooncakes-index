@@ -1,21 +1,40 @@
 import json
 import os
+import sys
 from collections import defaultdict
 
 VERDICT_ORDER = ("Malicious", "Suspicious", "Error", "Clean")
 
 
-def write_summary(results_path: str, out_path: str) -> None:
-    groups: dict[str, list[dict]] = defaultdict(list)
-    n = 0
+def load_rows(results_path: str) -> list[dict]:
+    """Parse a JSONL results file: skip malformed lines (with a stderr
+    warning) and dedup by module, last row winning (a crash between the
+    results append and state.mark re-scans a module on resume)."""
+    rows: list[dict] = []
+    malformed = 0
     with open(results_path) as f:
         for line in f:
             line = line.strip()
             if not line:
                 continue
-            r = json.loads(line)
-            n += 1
-            groups[r.get("verdict", "Error")].append(r)
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                malformed += 1
+    if malformed:
+        print(f"warning: skipped {malformed} malformed result line(s)", file=sys.stderr)
+    dedup: dict[str, dict] = {}
+    for r in rows:
+        dedup[r.get("module") or ""] = r
+    return list(dedup.values())
+
+
+def write_summary(results_path: str, out_path: str) -> None:
+    rows = load_rows(results_path)
+    groups: dict[str, list[dict]] = defaultdict(list)
+    for r in rows:
+        groups[r.get("verdict", "Error")].append(r)
+    n = len(rows)
     directory = os.path.dirname(out_path) or "."
     os.makedirs(directory, exist_ok=True)
     with open(out_path, "w") as out:
