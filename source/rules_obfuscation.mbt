@@ -18,6 +18,12 @@ pub fn s04(ctx : SourceCtx) -> Array[@engine.Finding] {
     category: @engine.Source,
     description: "decode call",
   }
+  let rd_lo : @engine.RuleDef = {
+    id: "S04",
+    severity: @engine.Low,
+    category: @engine.Source,
+    description: "hex run",
+  }
   let (b64, b64_at) = longest_run_at(ctx.content, @matchers.is_b64)
   let (hex, hex_at) = longest_run_at(ctx.content, @matchers.is_hex)
   if b64 > 80 {
@@ -34,11 +40,11 @@ pub fn s04(ctx : SourceCtx) -> Array[@engine.Finding] {
   if hex >= 64 {
     let line = ctx.lines.line_of(hex_at)
     fs.push(
-      rd_hi.finding(
+      rd_lo.finding(
         file=ctx.file,
         line~,
         snippet=ctx.lines.snippet(ctx.content, line),
-        message="hex blob length \{hex}",
+        message="hex run length \{hex} (possibly crypto constants)",
       ),
     )
   }

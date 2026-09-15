@@ -81,6 +81,17 @@ test "S04 long base64 blob" {
 }
 
 ///|
+test "S04 long hex run is low not high" {
+  // 长十六进制串在加密代码中是惯用写法（S 盒/轮常量/测试向量），
+  // 仅作 Low 提示；混淆的强信号是 base64 长串（High）。
+  let hexblob = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8"
+  inspect(hexblob.length() >= 64, content="true")
+  let fs = @source.s04(mkctx("let k = \"\{hexblob}\""))
+  inspect(fs.length(), content="1")
+  debug_inspect(fs[0].severity, content="Low")
+}
+
+///|
 test "S05 extern ffi" {
   let fs = @source.s05(
     mkctx("fn dlopen(p : String) -> Unit = \"c\" \"dlopen\""),
