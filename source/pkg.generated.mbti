@@ -1,11 +1,33 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "audit/mooncake-audit/source"
 
+import {
+  "audit/mooncake-audit/engine",
+  "audit/mooncake-audit/engine/matchers",
+  "moonbitlang/core/debug",
+}
+
 // Values
+pub fn all_source_rules() -> Array[(String, (SourceCtx) -> Array[@engine.Finding])]
+
+pub fn s01(SourceCtx) -> Array[@engine.Finding]
+
+pub fn s02(SourceCtx) -> Array[@engine.Finding]
+
+pub fn s03(SourceCtx) -> Array[@engine.Finding]
+
+pub fn s04(SourceCtx) -> Array[@engine.Finding]
+
+pub fn s05(SourceCtx) -> Array[@engine.Finding]
 
 // Errors
 
 // Types and methods
+pub(all) struct SourceCtx {
+  file : String
+  content : String
+  lines : @matchers.LineIndex
+} derive(@debug.Debug)
 
 // Type aliases
 
