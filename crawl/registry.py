@@ -46,12 +46,13 @@ def build_hotlist(path: str, modules: list[dict] | None = None, top_n: int = 100
 
 def parse_statistics_csv(data: bytes) -> list[tuple[str, int]]:
     z = zipfile.ZipFile(io.BytesIO(data))
+    name = next((n for n in z.namelist() if n.endswith("statistics.csv")), z.namelist()[0])
     rows = []
-    for line in z.read(z.namelist()[0]).decode().splitlines()[1:]:
+    for line in z.read(name).decode().splitlines()[1:]:
         parts = line.split(",")
-        if len(parts) >= 2:
+        if len(parts) >= 4:
             try:
-                rows.append((parts[0], int(parts[1])))
+                rows.append((parts[1], int(parts[3])))
             except ValueError:
                 pass
     return rows
