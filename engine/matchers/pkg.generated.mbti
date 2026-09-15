@@ -1,11 +1,30 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "audit/mooncake-audit/engine/matchers"
 
+import {
+  "moonbitlang/core/debug",
+}
+
 // Values
+pub fn damerau_levenshtein(String, String) -> Int
+
+pub fn is_b64(UInt16) -> Bool
+
+pub fn is_hex(UInt16) -> Bool
+
+pub fn is_raw_ip_url(String) -> Bool
+
+pub fn longest_run(String, (UInt16) -> Bool) -> Int
 
 // Errors
 
 // Types and methods
+pub(all) struct LineIndex {
+  starts : Array[Int]
+} derive(@debug.Debug)
+pub fn LineIndex::build(String) -> Self
+pub fn LineIndex::line_of(Self, Int) -> Int
+pub fn LineIndex::snippet(Self, String, Int) -> String
 
 // Type aliases
 
