@@ -71,13 +71,25 @@ test "S03 os process indicators still fire" {
 }
 
 ///|
-test "S04 long base64 blob" {
+test "S04 long base64 blob without decode context is low" {
+  // 编码长串无同文件解码意图 → 仅 Low（加密常量/测试向量常见形态）
   let blob = "A1b2C3d4E5f6G7h8I9j0A1b2C3d4E5f6G7h8I9j0A1b2C3d4E5f6G7h8I9j0A1b2C3d4E5f6G7h8I9j0A1b2C3d4E5f6G7h8I9j0"
   inspect(blob.length() > 80, content="true")
   let fs = @source.s04(mkctx("let a = 1\nlet s = \"\{blob}\""))
   inspect(fs.length(), content="1")
-  debug_inspect(fs[0].severity, content="High")
+  debug_inspect(fs[0].severity, content="Low")
   inspect(fs[0].line, content="2")
+}
+
+///|
+test "S04 blob with same-file decode call is high" {
+  let blob = "A1b2C3d4E5f6G7h8I9j0A1b2C3d4E5f6G7h8I9j0A1b2C3d4E5f6G7h8I9j0A1b2C3d4E5f6G7h8I9j0A1b2C3d4E5f6G7h8I9j0"
+  let fs = @source.s04(
+    mkctx("let s = \"\{blob}\"\nfn d() { s.from_base64() |> ignore }"),
+  )
+  inspect(fs.length(), content="2")
+  debug_inspect(fs[0].severity, content="High")
+  debug_inspect(fs[1].severity, content="Medium")
 }
 
 ///|

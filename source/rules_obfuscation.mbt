@@ -24,18 +24,36 @@ pub fn s04(ctx : SourceCtx) -> Array[@engine.Finding] {
     category: @engine.Source,
     description: "hex run",
   }
+  let rd_blob_lo : @engine.RuleDef = {
+    id: "S04",
+    severity: @engine.Low,
+    category: @engine.Source,
+    description: "encoded blob",
+  }
+  let has_decode = contains_any(ctx.content, decode_calls)
   let (b64, b64_at) = longest_run_at(ctx.content, @matchers.is_b64)
   let (hex, hex_at) = longest_run_at(ctx.content, @matchers.is_hex)
   if b64 > 80 {
     let line = ctx.lines.line_of(b64_at)
-    fs.push(
-      rd_hi.finding(
-        file=ctx.file,
-        line~,
-        snippet=ctx.lines.snippet(ctx.content, line),
-        message="base64 blob length \{b64}",
-      ),
-    )
+    if has_decode {
+      fs.push(
+        rd_hi.finding(
+          file=ctx.file,
+          line~,
+          snippet=ctx.lines.snippet(ctx.content, line),
+          message="base64 blob length \{b64}",
+        ),
+      )
+    } else {
+      fs.push(
+        rd_blob_lo.finding(
+          file=ctx.file,
+          line~,
+          snippet=ctx.lines.snippet(ctx.content, line),
+          message="encoded blob without decode context",
+        ),
+      )
+    }
   }
   if hex >= 64 {
     let line = ctx.lines.line_of(hex_at)
