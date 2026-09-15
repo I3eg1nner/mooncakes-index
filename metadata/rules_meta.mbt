@@ -175,7 +175,10 @@ pub fn m04(m : Manifest) -> Array[@engine.Finding] {
   }
   let owner = owner_of_url(m.repository)
   let author = author_of(m.name)
-  if owner.length() > 0 && author.length() > 0 && owner != author {
+  // GitHub 登录名大小写不敏感（Across2005/across2005 为同一 owner）
+  if owner.length() > 0 &&
+    author.length() > 0 &&
+    owner.to_lower() != author.to_lower() {
     let rd : @engine.RuleDef = {
       id: "M04",
       severity: @engine.Medium,
@@ -207,15 +210,24 @@ pub fn m05(m : Manifest, hotlist : Array[String]) -> Array[@engine.Finding] {
   let fs : Array[@engine.Finding] = []
   for dep in m.deps {
     let drepo = repo_of(dep)
+    // 与 M01 相同的短名护栏：双方 repo 名均 ≥5 才比对（x/y、x/ts 类碰撞过于随机）
     let near_hot = hotlist
       .iter()
       .any(h => {
         let hrepo = repo_of(h)
-        hrepo != drepo && @matchers.damerau_levenshtein(drepo, hrepo) <= 2
+        hrepo != drepo &&
+        drepo.length() >= 5 &&
+        hrepo.length() >= 5 &&
+        @matchers.damerau_levenshtein(drepo, hrepo) <= 2
       })
     let near_official = official_repo_names()
       .iter()
-      .any(o => o != drepo && @matchers.damerau_levenshtein(drepo, o) <= 2)
+      .any(o => {
+        o != drepo &&
+        drepo.length() >= 5 &&
+        o.length() >= 5 &&
+        @matchers.damerau_levenshtein(drepo, o) <= 2
+      })
     if near_hot || near_official {
       fs.push(
         rd.finding(

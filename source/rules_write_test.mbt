@@ -40,3 +40,17 @@ test "s08 no write call or benign target" {
   let benign = "@fs.write_string_to_file(\"/tmp/log.txt\", data)"
   inspect(@source.s08(@source.mkctx_for_test(benign)).length(), content="0")
 }
+
+///|
+test "s08 target in prose away from write call is not flagged" {
+  let code = "// docs say it writes .bashrc\nfn f(p : String, home : String) {\n  @fs.write_string_to_file(p, home + \"/out\")\n}"
+  inspect(@source.s08(@source.mkctx_for_test(code)).length(), content="0")
+}
+
+///|
+test "s08 same-line write and target is critical" {
+  let code = "@fs.write_string_to_file(p, home + \"/.bashrc\")"
+  let fs = @source.s08(@source.mkctx_for_test(code))
+  inspect(fs.length(), content="1")
+  debug_inspect(fs[0].severity, content="Critical")
+}

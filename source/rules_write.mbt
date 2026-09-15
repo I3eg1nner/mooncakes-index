@@ -67,7 +67,12 @@ pub fn s08(ctx : SourceCtx) -> Array[@engine.Finding] {
   if !has_write {
     return []
   }
-  let hits = dedupe_by_line(write_target_ac.scan(ctx.content), ctx.lines)
+  // 敏感目标须与写调用同行：文件级共现会把散文/注释里的 ".bashrc" 误报
+  let hits = dedupe_by_line(write_target_ac.scan(ctx.content), ctx.lines).filter(h => {
+      let line = ctx.lines.line_of(h.offset)
+      contains_any(ctx.lines.snippet(ctx.content, line), write_calls)
+    },
+  )
   if hits.length() == 0 {
     return []
   }

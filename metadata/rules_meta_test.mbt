@@ -108,16 +108,30 @@ test "m04 repo owner mismatch" {
 }
 
 ///|
+test "m04 owner comparison is case insensitive" {
+  // GitHub 登录名大小写不敏感：Foo/foo 视为同一 owner
+  inspect(
+    @metadata.m04(manifest("Foo/lib", "https://github.com/foo/lib", [])).length(),
+    content="0",
+  )
+  // 大小写之外确有差异时仍报
+  inspect(
+    @metadata.m04(manifest("Foo/lib", "https://github.com/other/lib", [])).length(),
+    content="1",
+  )
+}
+
+///|
 test "m05 dependency confusion" {
-  let hot = ["moonbitlang/async", "bobzhang/toml"]
+  let hot = ["moonbitlang/async", "rxml/moonbit-xml"]
   let fs = @metadata.m05(
-    manifest("a/lib", "https://github.com/a/lib", ["bobzhang/tonml"]),
+    manifest("a/lib", "https://github.com/a/lib", ["rxml/moonbit-xmk"]),
     hot,
   )
   inspect(fs.length(), content="1")
   debug_inspect(fs[0].severity, content="High")
   inspect(fs[0].rule, content="M05")
-  inspect(fs[0].snippet, content="bobzhang/tonml")
+  inspect(fs[0].snippet, content="rxml/moonbit-xmk")
   // exact matches (hotlist + official names) are excluded
   let none = @metadata.m05(
     manifest("a/lib", "https://github.com/a/lib", [
@@ -126,6 +140,34 @@ test "m05 dependency confusion" {
     hot,
   )
   inspect(none.length(), content="0")
+}
+
+///|
+test "m05 short repo names skip dl comparison" {
+  // 依赖 repo "x"（<5）与 hotlist 短名 "ts" 碰撞 → 不报
+  inspect(
+    @metadata.m05(
+      manifest("a/lib", "https://github.com/a/lib", ["moonbitlang/x"]),
+      ["mizchi/ts"],
+    ).length(),
+    content="0",
+  )
+  // 官方名集合含单字母 "x"：短 repo "y" 的碰撞同样不报
+  inspect(
+    @metadata.m05(
+      manifest("a/lib", "https://github.com/a/lib", ["moonbitlang/y"]),
+      [],
+    ).length(),
+    content="0",
+  )
+  // 双方 repo 名均 ≥5 的真实近似仍报
+  inspect(
+    @metadata.m05(
+      manifest("a/lib", "https://github.com/a/lib", ["moonbitlang/asynx"]),
+      ["moonbitlang/async"],
+    ).length(),
+    content="1",
+  )
 }
 
 ///|
