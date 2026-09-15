@@ -14,6 +14,7 @@ async test "run_scan over temp malicious dir" {
   )
   let r = @scan.run_scan(dir, {
     hotlist: ["moonbitlang/async", "moonbitlang/core"],
+    authoritative_name: "",
   })
   inspect(r.module, content="evil/asynx")
   // M01(10) + S02(10) = 20 → Suspicious
@@ -33,6 +34,46 @@ async test "run_scan over temp malicious dir" {
 }
 
 ///|
+async test "run_scan m06 fires on manifest/registry name mismatch" {
+  let dir = @fs.tmpdir(prefix="scan-m06-")
+  @fs.mkdir(dir + "/src", recursive=true)
+  @fs.write_file(
+    dir + "/moon.mod",
+    "name = \"moonbitlang/async\"\nversion = \"0.1.0\"\nrepository = \"https://github.com/moonbitlang/async\"\n",
+    create_mode=CreateOrTruncate,
+  )
+  @fs.write_file(
+    dir + "/src/a.mbt",
+    "let x = 1\n",
+    create_mode=CreateOrTruncate,
+  )
+  // 权威名与声明名不一致 → M06 High，且 M 规则以权威名比对（M02 用 evil author 命中）
+  let r = @scan.run_scan(dir, { hotlist: [], authoritative_name: "evil/asynx" })
+  let m06 = r.findings.filter(f => f.rule == "M06")
+  inspect(m06.length(), content="1")
+  debug_inspect(m06[0].severity, content="High")
+  inspect(m06[0].file, content="moon.mod")
+  inspect(
+    m06[0].message.contains("moonbitlang/async") &&
+    m06[0].message.contains("evil/asynx"),
+    content="true",
+  )
+  inspect(
+    r.findings
+    .iter()
+    .any(f => f.rule == "M02" && f.severity == @engine.Critical),
+    content="true",
+  )
+  // 权威名与声明名一致 → 无 M06，M02 不误报
+  let r2 = @scan.run_scan(dir, {
+    hotlist: [],
+    authoritative_name: "moonbitlang/async",
+  })
+  inspect(r2.findings.filter(f => f.rule == "M06").length(), content="0")
+  inspect(r2.findings.filter(f => f.rule == "M02").length(), content="0")
+}
+
+///|
 async test "run_scan without moon.mod falls back to dir name" {
   let dir = @fs.tmpdir(prefix="scan-empty-")
   @fs.mkdir(dir + "/src", recursive=true)
@@ -41,7 +82,7 @@ async test "run_scan without moon.mod falls back to dir name" {
     "let x = 1\n",
     create_mode=CreateOrTruncate,
   )
-  let r = @scan.run_scan(dir, { hotlist: [] })
+  let r = @scan.run_scan(dir, { hotlist: [], authoritative_name: "" })
   let dirname = match dir.rev_find("/") {
     Some(i) => dir[i + 1:].to_owned()
     None => dir
@@ -63,7 +104,7 @@ async test "run_scan survives symlink loop" {
   )
   // directory symlink cycle: loop -> . would recurse forever pre-fix
   @fs.symlink(target=".", dir + "/loop")
-  let r = @scan.run_scan(dir, { hotlist: [] })
+  let r = @scan.run_scan(dir, { hotlist: [], authoritative_name: "" })
   inspect(r.module, content="evil/loop")
   inspect(r.verdict, content="Clean")
   inspect(r.errors.length(), content="0")
@@ -83,7 +124,7 @@ async test "run_scan reads moon.mod.json fallback" {
     "let x = 1\n",
     create_mode=CreateOrTruncate,
   )
-  let r = @scan.run_scan(dir, { hotlist: [] })
+  let r = @scan.run_scan(dir, { hotlist: [], authoritative_name: "" })
   inspect(r.module, content="a/b")
   inspect(r.version, content="1.0.0")
   inspect(r.errors.contains("cannot parse moon.mod"), content="false")
@@ -103,7 +144,7 @@ async test "run_scan applies s-rules to mbt.md fences only" {
     "prose mentions @shell.Cmd(\"curl\") in passing\n```\n@shell.Cmd(\"curl\", [\"http://x\"]) |> ignore\n```\n",
     create_mode=CreateOrTruncate,
   )
-  let r = @scan.run_scan(dir, { hotlist: [] })
+  let r = @scan.run_scan(dir, { hotlist: [], authoritative_name: "" })
   let s03 = r.findings.filter(f => f.rule == "S03")
   inspect(s03.length(), content="1")
   inspect(s03[0].file, content="src/doc.mbt.md")

@@ -50,6 +50,44 @@ test "combine escalation preconditions" {
 }
 
 ///|
+test "combine requires high-rank feeders" {
+  let mk = (rule : String, sev : @engine.Severity) => {
+    let f : @engine.Finding = {
+      rule,
+      severity: sev,
+      category: @engine.Source,
+      file: "a.mbt",
+      line: 1,
+      snippet: "",
+      message: "",
+    }
+    f
+  }
+  // Low S01（http client 用法）+ Low S02（注释中的凭据词）→ 不升级
+  inspect(
+    @source.combine_rules([mk("S01", @engine.Low), mk("S02", @engine.Low)]).length(),
+    content="2",
+  )
+  // Low S01 + High S02：S01 侧不够格 → 不升级
+  inspect(
+    @source.combine_rules([mk("S01", @engine.Low), mk("S02", @engine.High)]).length(),
+    content="2",
+  )
+  // High S01（raw IP）+ High S02（凭据读取）→ 升级
+  let out = @source.combine_rules([
+    mk("S01", @engine.High),
+    mk("S02", @engine.High),
+  ])
+  inspect(out.length(), content="3")
+  inspect(out[2].rule, content="S99")
+  // Low S01 + High S04：S01 侧不够格 → 不升级
+  inspect(
+    @source.combine_rules([mk("S01", @engine.Low), mk("S04", @engine.High)]).length(),
+    content="2",
+  )
+}
+
+///|
 test "source file classification" {
   inspect(@source.is_source_file("a.mbt"), content="true")
   inspect(@source.is_source_file("a.mbtx"), content="true")

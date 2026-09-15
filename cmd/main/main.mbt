@@ -97,7 +97,10 @@ async fn main {
     Help => println(usage())
     Scan(..) as c => {
       let r = try {
-        let opts : @scan.ScanOptions = { hotlist: load_hotlist(c.hotlist) }
+        let opts : @scan.ScanOptions = {
+          hotlist: load_hotlist(c.hotlist),
+          authoritative_name: c.module,
+        }
         @scan.run_scan(c.dir, opts)
       } catch {
         e => {

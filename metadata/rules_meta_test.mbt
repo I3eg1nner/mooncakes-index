@@ -24,6 +24,96 @@ test "m02 impersonation of official" {
 }
 
 ///|
+test "m02 authoritative name closes manifest-name spoofing" {
+  // 注册为 evil/asynx，manifest 声明 name = "moonbitlang/async"：
+  // 无权威名时 author 早退（旧漏洞）；有权威名时 author 取 evil → 命中官方 repo 集
+  inspect(
+    @metadata.m02(
+      manifest("moonbitlang/async", "https://github.com/moonbitlang/async", []),
+    ).length(),
+    content="0",
+  )
+  let fs = @metadata.m02(
+    manifest("moonbitlang/async", "https://github.com/moonbitlang/async", []),
+    authoritative="evil/asynx",
+  )
+  inspect(fs.length(), content="1")
+  debug_inspect(fs[0].severity, content="Critical")
+  // 权威名自身仿冒官方 repo（evil/core）也命中
+  inspect(
+    @metadata.m02(
+      manifest("evil/whatever", "https://github.com/evil/whatever", []),
+      authoritative="evil/core",
+    ).length(),
+    content="1",
+  )
+  // 权威名为正版 moonbitlang/*：不报
+  inspect(
+    @metadata.m02(
+      manifest("moonbitlang/async", "https://github.com/moonbitlang/async", []),
+      authoritative="moonbitlang/async",
+    ).length(),
+    content="0",
+  )
+}
+
+///|
+test "m02 official repo comparison is case insensitive" {
+  // repo "Core" 与官方 "core" 仅大小写不同 → 仍视为仿冒
+  inspect(
+    @metadata.m02(manifest("evil/Core", "https://github.com/evil/Core", [])).length(),
+    content="1",
+  )
+}
+
+///|
+test "m01 authoritative name participates in typosquat comparison" {
+  let hot = ["moonbitlang/async"]
+  // 声明名 "moonbitlang/async" 与 hotlist 精确同名 → 旧逻辑跳过；
+  // 权威名 evil/asynx 的 repo "asynx" DL(async)=1 → 报
+  inspect(
+    @metadata.m01(
+      manifest("moonbitlang/async", "https://github.com/moonbitlang/async", []),
+      hot,
+    ).length(),
+    content="0",
+  )
+  let fs = @metadata.m01(
+    manifest("moonbitlang/async", "https://github.com/moonbitlang/async", []),
+    hot,
+    authoritative="evil/asynx",
+  )
+  inspect(fs.length(), content="1")
+  debug_inspect(fs[0].severity, content="High")
+  inspect(fs[0].snippet, content="evil/asynx")
+}
+
+///|
+test "m04 authoritative author vs repository owner" {
+  // 声明名伪装使 owner 与 author 恰好一致；权威名揭示真实 author 为 evil
+  inspect(
+    @metadata.m04(
+      manifest("moonbitlang/async", "https://github.com/moonbitlang/async", []),
+    ).length(),
+    content="0",
+  )
+  let fs = @metadata.m04(
+    manifest("moonbitlang/async", "https://github.com/moonbitlang/async", []),
+    authoritative="evil/asynx",
+  )
+  inspect(fs.length(), content="1")
+  debug_inspect(fs[0].severity, content="Medium")
+  // 权威名与 owner 一致时不报
+  inspect(
+    @metadata.m04(
+      manifest("whatever/declared", "https://github.com/evil/real", []),
+      authoritative="evil/real",
+    ).length(),
+    content="0",
+  )
+}
+
+///|
 test "m01 typosquat" {
   let hot = ["moonbitlang/async", "moonbitlang/core", "rxml/moonbit-xml"]
   let fs = @metadata.m01(

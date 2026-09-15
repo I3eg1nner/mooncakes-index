@@ -7,13 +7,13 @@ import {
 }
 
 // Values
-pub fn m01(Manifest, Array[String]) -> Array[@engine.Finding]
+pub fn m01(Manifest, Array[String], authoritative? : String) -> Array[@engine.Finding]
 
-pub fn m02(Manifest) -> Array[@engine.Finding]
+pub fn m02(Manifest, authoritative? : String) -> Array[@engine.Finding]
 
 pub fn m03(Manifest, Int, Bool) -> Array[@engine.Finding]
 
-pub fn m04(Manifest) -> Array[@engine.Finding]
+pub fn m04(Manifest, authoritative? : String) -> Array[@engine.Finding]
 
 pub fn m05(Manifest, Array[String]) -> Array[@engine.Finding]
 

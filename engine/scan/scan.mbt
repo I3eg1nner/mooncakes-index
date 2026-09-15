@@ -1,6 +1,8 @@
 ///|
 pub(all) struct ScanOptions {
   hotlist : Array[String]
+  /// 注册表权威模块名（来自 mooncakes.io 索引；直扫本地目录时为 ""）
+  authoritative_name : String
 } derive(Debug)
 
 ///|
@@ -96,16 +98,34 @@ pub async fn run_scan(root : String, opts : ScanOptions) -> @report.Report {
   // metadata rules (findings carry file "moon.mod")
   match manifest {
     Some(m) => {
-      for f in @metadata.m01(m, opts.hotlist) {
+      let auth = opts.authoritative_name
+      // M06：manifest 声明名与注册表权威名不一致（仿冒信号）
+      if auth != "" && m.name != auth {
+        let rd06 : @engine.RuleDef = {
+          id: "M06",
+          severity: @engine.High,
+          category: @engine.Metadata,
+          description: "manifest name mismatch",
+        }
+        findings.push(
+          rd06.finding(
+            file="moon.mod",
+            line=1,
+            snippet=m.name,
+            message="manifest name \{m.name} != registry name \{auth}",
+          ),
+        )
+      }
+      for f in @metadata.m01(m, opts.hotlist, authoritative=auth) {
         findings.push({ ..f, file: "moon.mod" })
       }
-      for f in @metadata.m02(m) {
+      for f in @metadata.m02(m, authoritative=auth) {
         findings.push({ ..f, file: "moon.mod" })
       }
       for f in @metadata.m03(m, readme_len, has_tests) {
         findings.push({ ..f, file: "moon.mod" })
       }
-      for f in @metadata.m04(m) {
+      for f in @metadata.m04(m, authoritative=auth) {
         findings.push({ ..f, file: "moon.mod" })
       }
       for f in @metadata.m05(m, opts.hotlist) {

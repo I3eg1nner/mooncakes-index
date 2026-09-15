@@ -65,15 +65,21 @@ fn owner_of_url(url : String) -> String {
 }
 
 ///|
-/// M01：repo 名与 hotlist 中 repo 名 DL ≤2 且不同名 → High（每个模块至多一条，首个命中即止）
-pub fn m01(m : Manifest, hotlist : Array[String]) -> Array[@engine.Finding] {
+/// M01：repo 名与 hotlist 中 repo 名 DL ≤2 且不同名 → High（每个模块至多一条，首个命中即止）。
+/// 提供注册表权威名时以权威名的 repo 段参与比对（防 manifest 声明名伪装绕过）。
+pub fn m01(
+  m : Manifest,
+  hotlist : Array[String],
+  authoritative? : String = "",
+) -> Array[@engine.Finding] {
   let rd : @engine.RuleDef = {
     id: "M01",
     severity: @engine.High,
     category: @engine.Metadata,
     description: "typosquatting",
   }
-  let repo = repo_of(m.name)
+  let cmp = if authoritative != "" { authoritative } else { m.name }
+  let repo = repo_of(cmp)
   let fs : Array[@engine.Finding] = []
   for hot in hotlist {
     let hrepo = repo_of(hot)
@@ -87,7 +93,7 @@ pub fn m01(m : Manifest, hotlist : Array[String]) -> Array[@engine.Finding] {
           rd.finding(
             file="moon.mod",
             line=1,
-            snippet=m.name,
+            snippet=cmp,
             message="name similar to popular module \{hot}",
           ),
         )
@@ -99,15 +105,28 @@ pub fn m01(m : Manifest, hotlist : Array[String]) -> Array[@engine.Finding] {
 }
 
 ///|
-/// M02：author ≠ moonbitlang 但 repo ∈ 官方名集或 name 以 "moonbitlang/" 开头 → Critical
-pub fn m02(m : Manifest) -> Array[@engine.Finding] {
-  let author = author_of(m.name)
-  let repo = repo_of(m.name)
+/// M02：author ≠ moonbitlang 但 repo ∈ 官方名集 → Critical。
+/// 提供权威名时 author 取权威名（注册者），而官方名比对同时覆盖声明名与权威名
+/// （evil/asynx 声明 name = "moonbitlang/async" 时 repo "async" 命中官方集）。
+/// 官方 repo 比较大小写不敏感（Core/core 视为同名仿冒）。
+pub fn m02(
+  m : Manifest,
+  authoritative? : String = "",
+) -> Array[@engine.Finding] {
+  let author = if authoritative != "" {
+    author_of(authoritative)
+  } else {
+    author_of(m.name)
+  }
   if author == "moonbitlang" {
     return []
   }
-  if m.name.has_prefix("moonbitlang/") ||
-    official_repo_names().iter().any(o => o == repo) {
+  let official_hit = (n : String) => {
+    let repo = repo_of(n).to_lower()
+    official_repo_names().iter().any(o => o.to_lower() == repo)
+  }
+  if official_hit(m.name) ||
+    (authoritative != "" && official_hit(authoritative)) {
     let rd : @engine.RuleDef = {
       id: "M02",
       severity: @engine.Critical,
@@ -155,8 +174,12 @@ pub fn m03(
 }
 
 ///|
-/// M04：repository 为空 → Low；URL owner 段与模块 author 不一致 → Medium
-pub fn m04(m : Manifest) -> Array[@engine.Finding] {
+/// M04：repository 为空 → Low；URL owner 段与模块 author 不一致 → Medium。
+/// 提供权威名时 author 取权威名的 author 段（防声明名伪装）。
+pub fn m04(
+  m : Manifest,
+  authoritative? : String = "",
+) -> Array[@engine.Finding] {
   if m.repository.length() == 0 {
     let rd : @engine.RuleDef = {
       id: "M04",
@@ -174,7 +197,11 @@ pub fn m04(m : Manifest) -> Array[@engine.Finding] {
     ]
   }
   let owner = owner_of_url(m.repository)
-  let author = author_of(m.name)
+  let author = if authoritative != "" {
+    author_of(authoritative)
+  } else {
+    author_of(m.name)
+  }
   // GitHub 登录名大小写不敏感（Across2005/across2005 为同一 owner）
   if owner.length() > 0 &&
     author.length() > 0 &&

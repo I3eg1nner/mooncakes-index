@@ -11,6 +11,7 @@ fn canary(name : String) -> String {
 async test "canary typo_malicious is malicious" {
   let r = @scan.run_scan(canary("typo_malicious"), {
     hotlist: ["moonbitlang/async"],
+    authoritative_name: "",
   })
   // M01(10)+S01(10)+S02(10)+S99(25)+M03(5)+M04(1) = 61
   inspect(r.risk >= 50, content="true")
@@ -19,7 +20,10 @@ async test "canary typo_malicious is malicious" {
 
 ///|
 async test "canary prebuild_dropper is malicious" {
-  let r = @scan.run_scan(canary("prebuild_dropper"), { hotlist: [] })
+  let r = @scan.run_scan(canary("prebuild_dropper"), {
+    hotlist: [],
+    authoritative_name: "",
+  })
   // S06(25)+S03(25)+S01(10)+M03(5)+M04(1) = 66
   inspect(r.risk >= 50, content="true")
   inspect(r.verdict, content="Malicious")
@@ -27,7 +31,10 @@ async test "canary prebuild_dropper is malicious" {
 
 ///|
 async test "canary obfuscated_exfil is suspicious" {
-  let r = @scan.run_scan(canary("obfuscated_exfil"), { hotlist: [] })
+  let r = @scan.run_scan(canary("obfuscated_exfil"), {
+    hotlist: [],
+    authoritative_name: "",
+  })
   // S04 High(10) (blob+decode collapse to max severity) + M03(5) + M04(1) = 16
   inspect(r.risk >= 15, content="true")
   inspect(r.verdict, content="Suspicious")
@@ -37,6 +44,7 @@ async test "canary obfuscated_exfil is suspicious" {
 async test "canary benign_http is clean" {
   let r = @scan.run_scan(canary("benign_http"), {
     hotlist: ["moonbitlang/async"],
+    authoritative_name: "",
   })
   inspect(r.risk, content="0")
   inspect(r.verdict, content="Clean")
