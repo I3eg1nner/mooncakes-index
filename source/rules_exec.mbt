@@ -1,6 +1,7 @@
 ///|
+/// OS 进程执行指示；`spawn(` 不在此列（MoonBit 任务/协程 spawn 并非进程执行）
 let exec_indicators : Array[String] = [
-  "@shell.Cmd", "@shell.Pipeline", "spawn(", "system(", "popen(",
+  "@shell.Cmd", "@shell.Pipeline", "system(", "popen(", "execve",
 ]
 
 ///|

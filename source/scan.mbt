@@ -13,6 +13,25 @@ pub fn is_source_file(name : String) -> Bool {
 }
 
 ///|
+/// `.mbt.md` 文档：围栏代码块（``` 起止）之外的行替换为空行，行数不变以
+/// 保持 LineIndex 行号与原文一致；S 规则只扫描过滤后的围栏内容。
+pub fn extract_fenced_code(content : String) -> String {
+  let lines : Array[String] = []
+  let mut in_fence = false
+  for line in content.split("\n") {
+    if line.trim(chars=" \t").has_prefix("```") {
+      in_fence = !in_fence
+      lines.push("")
+    } else if in_fence {
+      lines.push(line.to_owned())
+    } else {
+      lines.push("")
+    }
+  }
+  lines.join("\n")
+}
+
+///|
 /// 组合升级：同文件 S01（网络）与 S02/S04（凭据/混淆）同现 → 追加一条 S99 Critical
 pub fn combine_rules(fs : Array[@engine.Finding]) -> Array[@engine.Finding] {
   let out = fs.copy()

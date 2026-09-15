@@ -58,3 +58,33 @@ test "source file classification" {
   inspect(@source.is_source_file("moon.pkg"), content="false")
   inspect(@source.is_source_file("moon.mod"), content="false")
 }
+
+///|
+test "extract_fenced_code blanks prose keeps code and line numbers" {
+  let doc = "intro prose\n```\nlet a = system(\"curl\")\n```\noutro prose"
+  inspect(
+    @source.extract_fenced_code(doc),
+    content=(
+      #|
+      #|
+      #|let a = system("curl")
+      #|
+      #|
+    ),
+  )
+}
+
+///|
+test "s03 sees mbt.md tokens inside fences only" {
+  let doc = "prose says system(\"curl http://x\") casually\n```\nsystem(\"curl http://x\")\n```\n"
+  let fs = @source.s03(mkctx(@source.extract_fenced_code(doc)))
+  inspect(fs.length(), content="1")
+  inspect(fs[0].line, content="3")
+}
+
+///|
+test "prose only mbt.md yields no findings" {
+  let doc = "we discuss curl and system( in prose\nwith no fences at all\n"
+  let fs = @source.s03(mkctx(@source.extract_fenced_code(doc)))
+  inspect(fs.length(), content="0")
+}

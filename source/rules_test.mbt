@@ -59,6 +59,18 @@ test "S03 plain spawn is medium" {
 }
 
 ///|
+test "S03 task spawn is not process execution" {
+  let fs = @source.s03(mkctx("let g = @gen.Gen::spawn(() => 1)"))
+  inspect(fs.length(), content="0")
+}
+
+///|
+test "S03 os process indicators still fire" {
+  let fs = @source.s03(mkctx("fn go() { system(\"ls\") }"))
+  inspect(fs.length(), content="1")
+}
+
+///|
 test "S04 long base64 blob" {
   let blob = "A1b2C3d4E5f6G7h8I9j0A1b2C3d4E5f6G7h8I9j0A1b2C3d4E5f6G7h8I9j0A1b2C3d4E5f6G7h8I9j0A1b2C3d4E5f6G7h8I9j0"
   inspect(blob.length() > 80, content="true")
@@ -79,6 +91,19 @@ test "S05 extern ffi" {
 ///|
 test "S05 extern c medium" {
   let fs = @source.s05(mkctx("fn ext_read(p : String) -> Int = \"c\" \"read\""))
+  debug_inspect(fs[0].severity, content="Medium")
+}
+
+///|
+test "S05 prose extern is ignored" {
+  let fs = @source.s05(mkctx("/// extern is a keyword in some languages"))
+  inspect(fs.length(), content="0")
+}
+
+///|
+test "S05 ffi declaration form fires medium" {
+  let fs = @source.s05(mkctx("fn f() -> Int = \"c\" \"read\""))
+  inspect(fs.length(), content="1")
   debug_inspect(fs[0].severity, content="Medium")
 }
 

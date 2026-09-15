@@ -12,6 +12,8 @@ pub fn all_source_rules() -> Array[(String, (SourceCtx) -> Array[@engine.Finding
 
 pub fn combine_rules(Array[@engine.Finding]) -> Array[@engine.Finding]
 
+pub fn extract_fenced_code(String) -> String
+
 pub fn is_source_file(String) -> Bool
 
 pub fn mkctx_for_test(String) -> SourceCtx

@@ -54,8 +54,17 @@ pub async fn run_scan(root : String, opts : ScanOptions) -> @report.Report {
       match @metadata.parse_manifest_json(mtext) {
         Some(m) => Some(m)
         None => {
-          errors.push("cannot parse moon.mod")
-          None
+          let jtext = match read_opt(root + "/moon.mod.json") {
+            Some(t) => t
+            None => ""
+          }
+          match @metadata.parse_manifest_json(jtext) {
+            Some(m) => Some(m)
+            None => {
+              errors.push("cannot parse moon.mod")
+              None
+            }
+          }
         }
       }
   }
@@ -121,10 +130,15 @@ pub async fn run_scan(root : String, opts : ScanOptions) -> @report.Report {
     } else if @source.is_source_file(name) {
       match read_opt(p) {
         Some(content) => {
+          let scanned = if name.has_suffix(".mbt.md") {
+            @source.extract_fenced_code(content)
+          } else {
+            content
+          }
           let ctx : @source.SourceCtx = {
             file: relp,
-            content,
-            lines: @matchers.LineIndex::build(content),
+            content: scanned,
+            lines: @matchers.LineIndex::build(scanned),
           }
           for rule in rules {
             let (_, rulefn) = rule

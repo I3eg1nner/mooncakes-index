@@ -68,3 +68,44 @@ async test "run_scan survives symlink loop" {
   inspect(r.verdict, content="Clean")
   inspect(r.errors.length(), content="0")
 }
+
+///|
+async test "run_scan reads moon.mod.json fallback" {
+  let dir = @fs.tmpdir(prefix="scan-modjson-")
+  @fs.mkdir(dir + "/src", recursive=true)
+  @fs.write_file(
+    dir + "/moon.mod.json",
+    "{\"name\": \"a/b\", \"version\": \"1.0.0\", \"repository\": \"https://github.com/a/b\"}",
+    create_mode=CreateOrTruncate,
+  )
+  @fs.write_file(
+    dir + "/src/a.mbt",
+    "let x = 1\n",
+    create_mode=CreateOrTruncate,
+  )
+  let r = @scan.run_scan(dir, { hotlist: [] })
+  inspect(r.module, content="a/b")
+  inspect(r.version, content="1.0.0")
+  inspect(r.errors.contains("cannot parse moon.mod"), content="false")
+}
+
+///|
+async test "run_scan applies s-rules to mbt.md fences only" {
+  let dir = @fs.tmpdir(prefix="scan-mbtmd-")
+  @fs.mkdir(dir + "/src", recursive=true)
+  @fs.write_file(
+    dir + "/moon.mod",
+    "name = \"evil/docfp\"\nversion = \"0.1.0\"\n",
+    create_mode=CreateOrTruncate,
+  )
+  @fs.write_file(
+    dir + "/src/doc.mbt.md",
+    "prose mentions system(\"curl http://x\") in passing\n```\nsystem(\"curl http://x\")\n```\n",
+    create_mode=CreateOrTruncate,
+  )
+  let r = @scan.run_scan(dir, { hotlist: [] })
+  let s03 = r.findings.filter(f => f.rule == "S03")
+  inspect(s03.length(), content="1")
+  inspect(s03[0].file, content="src/doc.mbt.md")
+  inspect(s03[0].line, content="3")
+}

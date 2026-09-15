@@ -1,7 +1,8 @@
 ///|
-/// MoonBit FFI 声明形式：fn f(..) -> T = "c" "sym"（兼容字面 extern 文本）
+/// MoonBit FFI 声明形式：fn f(..) -> T = "backend" "sym"（仅声明形态命中，
+/// 散文/注释中的字面 "extern" 不算）
 let ffi_decl_indicators : Array[String] = [
-  "extern", "= \"c\" \"", "= \"js\" \"", "= \"wasm\" \"", "= \"native\" \"",
+  "= \"c\" \"", "= \"js\" \"", "= \"wasm\" \"", "= \"native\" \"",
 ]
 
 ///|
