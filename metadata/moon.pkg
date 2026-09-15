@@ -1,4 +1,5 @@
 import {
   "audit/mooncake-audit/engine",
+  "audit/mooncake-audit/engine/matchers",
   "moonbitlang/core/json",
 }

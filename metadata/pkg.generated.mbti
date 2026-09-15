@@ -7,11 +7,25 @@ import {
 }
 
 // Values
+pub fn m01(Manifest, Array[String]) -> Array[@engine.Finding]
+
+pub fn m02(Manifest) -> Array[@engine.Finding]
+
+pub fn m03(Manifest, Int, Bool) -> Array[@engine.Finding]
+
+pub fn m04(Manifest) -> Array[@engine.Finding]
+
+pub fn m05(Manifest, Array[String]) -> Array[@engine.Finding]
+
+pub fn official_repo_names() -> Array[String]
+
 pub fn parse_manifest(String) -> Manifest?
 
 pub fn parse_manifest_json(String) -> Manifest?
 
 pub fn parse_pkg(String) -> PkgInfo
+
+pub fn repo_of_url(String) -> String
 
 pub fn s06(PkgInfo, String) -> Array[@engine.Finding]
 
