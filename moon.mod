@@ -11,3 +11,7 @@ license = "Apache-2.0"
 keywords = [ "security", "supply-chain", "audit" ]
 
 description = "Supply-chain security auditor for mooncakes.io packages"
+
+import {
+  "moonbitlang/async@0.20.4",
+}
