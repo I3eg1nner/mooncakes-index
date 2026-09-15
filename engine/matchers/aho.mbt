@@ -20,13 +20,13 @@ pub fn Automaton::new(patterns : Array[String]) -> Automaton {
   let out : Array[Array[Int]] = [[]]
   let pats : Array[Int] = []
   for pidx, p in patterns {
-    let units = p.to_array().map(c => c.to_int())
-    pats.push(units.length())
-    if units.length() == 0 {
+    pats.push(p.length())
+    if p.length() == 0 {
       continue
     }
     let mut state = 0
-    for u in units {
+    for j = 0; j < p.length(); j = j + 1 {
+      let u = p[j].to_int()
       match next[state].get(u) {
         Some(ns) => state = ns
         None => {
@@ -86,10 +86,9 @@ fn Automaton::go(self : Automaton, state : Int, u : Int) -> Int {
 ///|
 pub fn Automaton::scan(self : Automaton, text : String) -> Array[Hit] {
   let hits : Array[Hit] = []
-  let units = text.to_array().map(c => c.to_int())
   let mut state = 0
-  for i, u in units {
-    state = self.go(state, u)
+  for i = 0; i < text.length(); i = i + 1 {
+    state = self.go(state, text[i].to_int())
     for pidx in self.out[state] {
       let len = self.pats[pidx]
       hits.push({ pattern: pidx, offset: i - len + 1, length: len })

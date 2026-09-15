@@ -25,3 +25,19 @@ test "aho corasick empty text" {
   let ac = @matchers.Automaton::new(["x"])
   inspect(ac.scan("").length(), content="0")
 }
+
+///|
+test "aho corasick utf-16 code unit alignment" {
+  // 🚀 为代理对（2 个 code unit）+ 空格 = 命中前 3 个 unit
+  let ac = @matchers.Automaton::new(["ssh"])
+  let hits = ac.scan("🚀 ssh")
+  inspect(hits.length(), content="1")
+  inspect(hits[0].offset, content="3")
+  inspect(hits[0].length, content="3")
+  // 含非 BMP 字符的 pattern 同样按 unit 插入/匹配："x🚀y" 中 🚀 起始于 unit 1，长 2
+  let ac2 = @matchers.Automaton::new(["🚀"])
+  let hits2 = ac2.scan("x🚀y")
+  inspect(hits2.length(), content="1")
+  inspect(hits2[0].offset, content="1")
+  inspect(hits2[0].length, content="2")
+}
