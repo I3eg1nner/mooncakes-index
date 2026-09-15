@@ -52,3 +52,19 @@ async test "run_scan without moon.mod falls back to dir name" {
   inspect(r.verdict, content="Clean")
   inspect(r.risk, content="0")
 }
+
+///|
+async test "run_scan survives symlink loop" {
+  let dir = @fs.tmpdir(prefix="scan-symlink-")
+  @fs.write_file(
+    dir + "/moon.mod",
+    "name = \"evil/loop\"\nversion = \"0.1.0\"\n",
+    create_mode=CreateOrTruncate,
+  )
+  // directory symlink cycle: loop -> . would recurse forever pre-fix
+  @fs.symlink(target=".", dir + "/loop")
+  let r = @scan.run_scan(dir, { hotlist: [] })
+  inspect(r.module, content="evil/loop")
+  inspect(r.verdict, content="Clean")
+  inspect(r.errors.length(), content="0")
+}

@@ -24,10 +24,10 @@ fn rel(base : String, p : String) -> String {
 async fn walk_files(dir : String, acc : Array[String]) -> Unit {
   for name in @fs.readdir(dir) {
     let p = dir + "/" + name
-    if @fs.kind(p) is Directory {
-      walk_files(p, acc)
-    } else {
-      acc.push(p)
+    match @fs.kind(p, follow_symlink=false) {
+      SymLink => ()
+      Directory => walk_files(p, acc)
+      _ => acc.push(p)
     }
   }
 }
