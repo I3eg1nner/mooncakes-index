@@ -1,8 +1,8 @@
 ///|
-/// OS 进程执行指示；`spawn(` 不在此列（MoonBit 任务/协程 spawn 并非进程执行）
-let exec_indicators : Array[String] = [
-  "@shell.Cmd", "@shell.Pipeline", "system(", "popen(", "execve",
-]
+/// OS 进程执行指示：MoonBit 中进程执行仅经 @shell 包（async shell）；
+/// `spawn(` 不在此列（MoonBit 任务/协程 spawn 并非进程执行）；
+/// libc system/popen 等需 FFI 声明，归 S05 管。
+let exec_indicators : Array[String] = ["@shell.Cmd", "@shell.Pipeline"]
 
 ///|
 let dangerous_args : Array[String] = [

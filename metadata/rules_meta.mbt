@@ -80,16 +80,19 @@ pub fn m01(m : Manifest, hotlist : Array[String]) -> Array[@engine.Finding] {
     if hrepo == repo {
       continue
     }
-    if @matchers.damerau_levenshtein(repo, hrepo) <= 2 {
-      fs.push(
-        rd.finding(
-          file="moon.mod",
-          line=1,
-          snippet=m.name,
-          message="name similar to popular module \{hot}",
-        ),
-      )
-      break
+    // 短 repo 名（<5 字符）的 DL ≤2 碰撞过于随机（elk/pkl、json/jsoo）→ 不比对
+    if repo.length() >= 5 && hrepo.length() >= 5 {
+      if @matchers.damerau_levenshtein(repo, hrepo) <= 2 {
+        fs.push(
+          rd.finding(
+            file="moon.mod",
+            line=1,
+            snippet=m.name,
+            message="name similar to popular module \{hot}",
+          ),
+        )
+        break
+      }
     }
   }
   fs

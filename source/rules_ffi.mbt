@@ -7,8 +7,35 @@ let ffi_decl_indicators : Array[String] = [
 
 ///|
 let ffi_danger : Array[String] = [
-  "dlopen", "dlsym", "system(", "popen(", "execve", "LoadLibrary",
+  "dlopen", "dlsym", "system", "popen", "execve", "LoadLibrary", "fork", "execvp",
 ]
+
+///|
+/// FFI 声明行中 `= "backend" "sym"` 的符号名（指示串已含到 sym 前引号）
+fn ffi_symbol_of(line : String) -> String? {
+  for ind in ffi_decl_indicators {
+    match line.find(ind) {
+      Some(o) => {
+        let start = o + ind.length()
+        let n = line.length()
+        let mut end = n
+        let mut i = start
+        while i < n {
+          if line[i] == 34 {
+            end = i
+            break
+          }
+          i = i + 1
+        }
+        if end > start {
+          return Some(line[start:end].to_owned())
+        }
+      }
+      None => ()
+    }
+  }
+  None
+}
 
 ///|
 pub fn s05(ctx : SourceCtx) -> Array[@engine.Finding] {
@@ -25,7 +52,7 @@ pub fn s05(ctx : SourceCtx) -> Array[@engine.Finding] {
     category: @engine.Source,
     description: "dynamic code loading",
   }
-  // FFI 声明：行级扫描
+  // FFI 声明：行级扫描；符号为危险表内精确匹配时升级 Critical
   let mut off = 0
   for line_view in ctx.content.split("\n") {
     let line = line_view.to_owned()
@@ -38,25 +65,22 @@ pub fn s05(ctx : SourceCtx) -> Array[@engine.Finding] {
           message="FFI extern declaration",
         ),
       )
+      match ffi_symbol_of(line) {
+        Some(sym) =>
+          if ffi_danger.iter().any(d => d == sym) {
+            fs.push(
+              rd_cr.finding(
+                file=ctx.file,
+                line=ctx.lines.line_of(off),
+                snippet=line,
+                message="dynamic loading/exec symbol \"\{sym}\"",
+              ),
+            )
+          }
+        None => ()
+      }
     }
     off = off + line.length() + 1
-  }
-  // 动态加载/执行符号：每模式首个出现位置
-  for p in ffi_danger {
-    match ctx.content.find(p) {
-      Some(o) => {
-        let line = ctx.lines.line_of(o)
-        fs.push(
-          rd_cr.finding(
-            file=ctx.file,
-            line~,
-            snippet=ctx.lines.snippet(ctx.content, line),
-            message="dynamic loading/exec symbol \"\{p}\"",
-          ),
-        )
-      }
-      None => ()
-    }
   }
   fs
 }

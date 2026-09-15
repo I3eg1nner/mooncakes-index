@@ -76,7 +76,7 @@ test "extract_fenced_code blanks prose keeps code and line numbers" {
 
 ///|
 test "s03 sees mbt.md tokens inside fences only" {
-  let doc = "prose says system(\"curl http://x\") casually\n```\nsystem(\"curl http://x\")\n```\n"
+  let doc = "prose says @shell.Cmd(\"curl\") casually\n```\n@shell.Cmd(\"curl\", [\"http://x\"]) |> ignore\n```\n"
   let fs = @source.s03(mkctx(@source.extract_fenced_code(doc)))
   inspect(fs.length(), content="1")
   inspect(fs[0].line, content="3")
@@ -84,7 +84,7 @@ test "s03 sees mbt.md tokens inside fences only" {
 
 ///|
 test "prose only mbt.md yields no findings" {
-  let doc = "we discuss curl and system( in prose\nwith no fences at all\n"
+  let doc = "we discuss curl and @shell.Cmd in prose\nwith no fences at all\n"
   let fs = @source.s03(mkctx(@source.extract_fenced_code(doc)))
   inspect(fs.length(), content="0")
 }

@@ -65,9 +65,34 @@ test "S03 task spawn is not process execution" {
 }
 
 ///|
-test "S03 os process indicators still fire" {
-  let fs = @source.s03(mkctx("fn go() { system(\"ls\") }"))
+test "S01 raw ip localhost url is not flagged" {
+  let fs = @source.s01(mkctx("let u = \"http://127.0.0.1:8080/test\""))
+  inspect(fs.length(), content="0")
+}
+
+///|
+test "S01 private range raw ip still fires" {
+  let fs = @source.s01(mkctx("let u = \"http://10.0.0.5/x\""))
   inspect(fs.length(), content="1")
+  debug_inspect(fs[0].severity, content="High")
+}
+
+///|
+test "S03 identifier containing system is not exec" {
+  let fs = @source.s03(mkctx("let x = solve_8x8_system(6)"))
+  inspect(fs.length(), content="0")
+}
+
+///|
+test "S03 method call named system is not exec" {
+  let fs = @source.s03(mkctx("let c = ClockProvider::system()"))
+  inspect(fs.length(), content="0")
+}
+
+///|
+test "S03 bare libc call is not exec" {
+  let fs = @source.s03(mkctx("fn go() { system(\"ls\") }"))
+  inspect(fs.length(), content="0")
 }
 
 ///|
@@ -108,7 +133,25 @@ test "S05 extern ffi" {
   let fs = @source.s05(
     mkctx("fn dlopen(p : String) -> Unit = \"c\" \"dlopen\""),
   )
-  inspect(fs.length() >= 1, content="true")
+  inspect(fs.length(), content="2")
+  debug_inspect(fs[0].severity, content="Medium")
+  debug_inspect(fs[1].severity, content="Critical")
+}
+
+///|
+test "S05 danger ffi symbol is critical" {
+  let fs = @source.s05(
+    mkctx("fn sys_call(cmd : String) -> Int = \"c\" \"system\""),
+  )
+  inspect(fs.length(), content="2")
+  debug_inspect(fs[1].severity, content="Critical")
+  inspect(fs[1].message, content="dynamic loading/exec symbol \"system\"")
+}
+
+///|
+test "S05 bare system call site is not ffi danger" {
+  let fs = @source.s05(mkctx("let c = ClockProvider::system()"))
+  inspect(fs.length(), content="0")
 }
 
 ///|

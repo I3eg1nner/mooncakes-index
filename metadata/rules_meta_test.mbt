@@ -52,6 +52,24 @@ test "m01 typosquat" {
 }
 
 ///|
+test "m01 short repo names skip dl comparison" {
+  // 双方 repo 名长度 < 5 时短名碰撞过于随机（json/jsoo、elk/pkl）→ 不比对
+  inspect(
+    @metadata.m01(manifest("b/jsoo", "https://github.com/b/jsoo", []), [
+      "a/json",
+    ]).length(),
+    content="0",
+  )
+  // 双方 repo 名均 ≥ 5 时照常比对（asynx/async，DL=1）
+  inspect(
+    @metadata.m01(manifest("evil/asynx", "https://github.com/evil/asynx", []), [
+      "moonbitlang/async",
+    ]).length(),
+    content="1",
+  )
+}
+
+///|
 test "m03 empty shell" {
   let fs = @metadata.m03(
     manifest("a/great-lib", "https://github.com/a/great-lib", []),

@@ -77,7 +77,8 @@ pub fn s01(ctx : SourceCtx) -> Array[@engine.Finding] {
           }
           if host_end > host_start {
             let host = ctx.content[host_start:host_end].to_owned()
-            if is_raw_ip_host(host) {
+            // 127.0.0.1 为本机回环（本地开发/测试服务），非 exfil 目标
+            if is_raw_ip_host(host) && host != "127.0.0.1" {
               let line = ctx.lines.line_of(start)
               fs.push(
                 rd_hi.finding(

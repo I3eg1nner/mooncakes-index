@@ -100,7 +100,7 @@ async test "run_scan applies s-rules to mbt.md fences only" {
   )
   @fs.write_file(
     dir + "/src/doc.mbt.md",
-    "prose mentions system(\"curl http://x\") in passing\n```\nsystem(\"curl http://x\")\n```\n",
+    "prose mentions @shell.Cmd(\"curl\") in passing\n```\n@shell.Cmd(\"curl\", [\"http://x\"]) |> ignore\n```\n",
     create_mode=CreateOrTruncate,
   )
   let r = @scan.run_scan(dir, { hotlist: [] })
