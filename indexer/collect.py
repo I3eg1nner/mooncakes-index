@@ -12,6 +12,8 @@ from crawl.registry import fetch_module_index
 
 README_MAX_CHARS = 8192
 SECTION_SOFT_CAP = 2000
+MBTI_MAX_CHARS = 4000
+BOILERPLATE_MIN_MODULES = 20
 
 _HEADING_RE = re.compile(r"^#{1,3} .*$", re.MULTILINE)
 
@@ -126,6 +128,55 @@ def collect(corpus_dir: Path, index_dir: Path, state_dir: Path, *, fetch_registr
     registry = _load_registry_index(state_dir, fetch_registry)
     index_dir.mkdir(parents=True, exist_ok=True)
     stats = CollectStats(0, 0, 0, 0)
+    staged: list[tuple[dict, list[tuple[str, str, str, str | None, str]]]] = []
+    for module_dir in _iter_module_dirs(corpus_dir):
+        name = f"{module_dir.parent.name}/{module_dir.name}"
+        meta = registry.get(name) or {}
+        version = str(meta.get("version") or "")
+        description = str(meta.get("description") or "")
+        keywords = meta.get("keywords")
+        if not isinstance(keywords, list):
+            keywords = []
+        meta_text = f"{name} {version}\n{description}\nkeywords: {', '.join(map(str, keywords))}"
+        if "jq" in name.rsplit("/", 1)[-1].lower():
+            meta_text += "\nAlias: JMESPath-family JSON query processor (implements the jq query language)"
+        rows = [(name, version, "meta", None, meta_text)]
+        readme_raw = pick_readme(module_dir)
+        readme_text = ""
+        if readme_raw is not None:
+            stats.with_readme += 1
+            readme_text = readme_raw[:README_MAX_CHARS]
+            for title, body in chunk_readme(readme_text):
+                rows.append((name, version, "readme", title, body))
+        mbti_entries: list[dict[str, str]] = []
+        for mbti_path in sorted(module_dir.rglob("pkg.generated.mbti"), key=str):
+            label = _mbti_label(mbti_path, module_dir)
+            text = _read_text(mbti_path)
+            if len(text) > MBTI_MAX_CHARS:
+                text = text[:MBTI_MAX_CHARS] + "\n… (truncated)"
+            mbti_entries.append({"pkg": label, "text": text})
+            rows.append((name, version, "mbti", label, text))
+        if mbti_entries:
+            stats.with_mbti += 1
+        record = {
+            "name": name,
+            "version": version,
+            "description": description,
+            "keywords": keywords,
+            "readme": readme_text,
+            "mbti": mbti_entries,
+        }
+        staged.append((record, rows))
+        stats.modules += 1
+    occurrences: dict[str, set[str]] = {}
+    for record, mod_rows in staged:
+        for row in mod_rows:
+            occurrences.setdefault(" ".join(row[4].split()), set()).add(record["name"])
+    boilerplate = {
+        text: modules
+        for text, modules in occurrences.items()
+        if len(modules) > BOILERPLATE_MIN_MODULES
+    }
     conn = sqlite3.connect(index_dir / "chunks.db")
     try:
         conn.execute("DROP TABLE IF EXISTS chunks")
@@ -138,46 +189,23 @@ def collect(corpus_dir: Path, index_dir: Path, state_dir: Path, *, fetch_registr
             "label TEXT, "
             "text TEXT NOT NULL)"
         )
+        conn.execute("DROP TABLE IF EXISTS boilerplate")
+        conn.execute("CREATE TABLE boilerplate(text TEXT PRIMARY KEY, modules INTEGER)")
         rows: list[tuple[str, str, str, str | None, str]] = []
         with (index_dir / "packages.jsonl").open("w", encoding="utf-8") as out:
-            for module_dir in _iter_module_dirs(corpus_dir):
-                name = f"{module_dir.parent.name}/{module_dir.name}"
-                meta = registry.get(name) or {}
-                version = str(meta.get("version") or "")
-                description = str(meta.get("description") or "")
-                keywords = meta.get("keywords")
-                if not isinstance(keywords, list):
-                    keywords = []
-                meta_text = f"{name} {version}\n{description}\nkeywords: {', '.join(map(str, keywords))}"
-                rows.append((name, version, "meta", None, meta_text))
-                readme_raw = pick_readme(module_dir)
-                readme_text = ""
-                if readme_raw is not None:
-                    stats.with_readme += 1
-                    readme_text = readme_raw[:README_MAX_CHARS]
-                    for title, body in chunk_readme(readme_text):
-                        rows.append((name, version, "readme", title, body))
-                mbti_entries: list[dict[str, str]] = []
-                for mbti_path in sorted(module_dir.rglob("pkg.generated.mbti"), key=str):
-                    label = _mbti_label(mbti_path, module_dir)
-                    text = _read_text(mbti_path)
-                    mbti_entries.append({"pkg": label, "text": text})
-                    rows.append((name, version, "mbti", label, text))
-                if mbti_entries:
-                    stats.with_mbti += 1
-                record = {
-                    "name": name,
-                    "version": version,
-                    "description": description,
-                    "keywords": keywords,
-                    "readme": readme_text,
-                    "mbti": mbti_entries,
-                }
+            for record, mod_rows in staged:
+                for row in mod_rows:
+                    if " ".join(row[4].split()) in boilerplate:
+                        continue
+                    rows.append(row)
                 out.write(json.dumps(record, ensure_ascii=False) + "\n")
-                stats.modules += 1
         conn.executemany(
             "INSERT INTO chunks(module, version, chunk_type, label, text) VALUES (?, ?, ?, ?, ?)",
             rows,
+        )
+        conn.executemany(
+            "INSERT INTO boilerplate(text, modules) VALUES (?, ?)",
+            [(text, len(modules)) for text, modules in sorted(boilerplate.items())],
         )
         conn.commit()
     finally:
