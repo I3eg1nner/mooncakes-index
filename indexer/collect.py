@@ -97,7 +97,10 @@ def _load_registry_index(state_dir: Path, fetch_registry: Callable[[], list[dict
         print(f"warn: registry index fetch failed ({exc}); metadata left empty", file=sys.stderr)
         return {}
     state_dir.mkdir(parents=True, exist_ok=True)
-    cache_path.write_text(json.dumps(entries, ensure_ascii=False), encoding="utf-8")
+    try:
+        cache_path.write_text(json.dumps(entries, ensure_ascii=False), encoding="utf-8")
+    except OSError as exc:
+        print(f"warn: could not write registry cache ({exc}); continuing without cache", file=sys.stderr)
     return _registry_dict(entries)
 
 
@@ -144,7 +147,7 @@ def collect(corpus_dir: Path, index_dir: Path, state_dir: Path, *, fetch_registr
                 keywords = meta.get("keywords")
                 if not isinstance(keywords, list):
                     keywords = []
-                meta_text = f"{name} {version}\n{description}\nkeywords: {', '.join(keywords)}"
+                meta_text = f"{name} {version}\n{description}\nkeywords: {', '.join(map(str, keywords))}"
                 rows.append((name, version, "meta", None, meta_text))
                 readme_raw = pick_readme(module_dir)
                 readme_text = ""

@@ -34,7 +34,7 @@ def test_collect_end_to_end(tmp_path):
     corpus = tmp_path / "corpus"
     make_pkg(corpus, "bobzhang/moonjq", "0.1.2", "# moonjq\nA jq implementation", {"": "fn query(...)"})
     make_pkg(corpus, "empty/noreadme", "0.1.0", None, {})
-    stats = collect(corpus, tmp_path / "index", tmp_path)
+    stats = collect(corpus, tmp_path / "index", tmp_path, fetch_registry=lambda: [])
     assert stats.modules == 2 and stats.with_readme == 1 and stats.with_mbti == 1
     rows = sqlite3.connect(tmp_path / "index/chunks.db").execute(
         "SELECT module, chunk_type FROM chunks ORDER BY id").fetchall()
