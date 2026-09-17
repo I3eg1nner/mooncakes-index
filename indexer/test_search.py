@@ -32,7 +32,7 @@ def test_search_ranks_expected_module_top(tmp_path):
 
     hits = search.search("jmes", n=5, verdict=None, index_dir=index_dir,
                          results_path=tmp_path / "results.jsonl", embedder=QueryIsJq())
-    assert hits[0].module == "bobzhang/moonjq" and hits[0].score == pytest.approx(1.0, abs=1e-6)
+    assert hits[0].module == "bobzhang/moonjq" and hits[0].score == pytest.approx(1.0 * search.META_BOOST, abs=1e-6)
 
 
 def test_search_empty_query_raises(tmp_path):
@@ -62,3 +62,27 @@ def test_search_rejects_bad_n(tmp_path):
     with pytest.raises(ValueError):
         search.search("t", n=0, verdict=None, index_dir=index_dir,
                       results_path=tmp_path / "r.jsonl", embedder=FakeEmbedder())
+
+
+def test_meta_chunk_boosted_in_aggregation(tmp_path):
+    index_dir, _ = build_index(tmp_path, {
+        "a/mod": ("1.0.0", ["author self description of the module"]),
+        "b/mod": ("2.0.0", ["readme body text of the module"]),
+    })
+    np.save(index_dir / "vectors.npy", FakeEmbedder().embed(
+        ["author self description of the module", "readme body text of the module"]))
+    import sqlite3 as _sq
+    _db = _sq.connect(index_dir / "chunks.db")
+    _db.execute("UPDATE chunks SET chunk_type = 'readme' WHERE module = 'b/mod'")
+    _db.commit()
+    _db.close()
+
+    class QueryIsMeta(FakeEmbedder):
+        def embed(self, texts):
+            return FakeEmbedder().embed(["author self description of the module"])
+
+    hits = search.search("meta", n=5, verdict=None, index_dir=index_dir,
+                         results_path=tmp_path / "results.jsonl", embedder=QueryIsMeta())
+    assert hits[0].module == "a/mod" and hits[1].module == "b/mod"
+    assert hits[0].score == pytest.approx(1.0 * search.META_BOOST, abs=1e-6)
+    assert hits[1].score < hits[0].score

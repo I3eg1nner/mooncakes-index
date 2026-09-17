@@ -3,9 +3,10 @@
 
 Loads index/vectors.npy + index/chunks.db, embeds the query with the given
 Embedder, scores every chunk by cosine similarity (vectors are L2-normalized
-at write time, so a normalized dot product is the cosine), aggregates per
-module by its max chunk score, joins verdict/risk from the audit results
-jsonl, optionally filters by verdict (case-insensitive, after the join),
+at write time, so a normalized dot product is the cosine), aggregates per module by its max chunk score (a meta chunk contributes its
+score times META_BOOST: the meta text is the author-controlled self-description,
+while readme/mbti chunks are corroborating evidence), joins verdict/risk from
+the audit results jsonl, optionally filters by verdict (case-insensitive, after the join),
 and returns up to n hits sorted by score desc (module name as tie-break).
 """
 import argparse
@@ -17,6 +18,7 @@ from pathlib import Path
 import numpy as np
 
 MAX_QUERY_CHARS = 512
+META_BOOST = 1.15
 
 
 @dataclass
@@ -56,7 +58,7 @@ def _load_chunks(index_dir: Path) -> list[tuple]:
     conn = sqlite3.connect(index_dir / "chunks.db")
     try:
         return conn.execute(
-            "SELECT id, module, version, text FROM chunks ORDER BY id").fetchall()
+            "SELECT id, module, version, chunk_type, text FROM chunks ORDER BY id").fetchall()
     finally:
         conn.close()
 
@@ -81,11 +83,13 @@ def search(query: str, *, n: int = 10, verdict: str | None, index_dir: Path,
         qv = qv / norm
 
     best: dict[str, tuple[float, str, str]] = {}
-    for cid, module, version, text in rows:
+    for cid, module, version, chunk_type, text in rows:
         row = cid - 1  # npy row i holds the vector for chunks.id = i + 1
         if row < 0 or row >= len(vecs):
             continue
         score = float(vecs[row] @ qv)
+        if chunk_type == "meta":
+            score *= META_BOOST
         cur = best.get(module)
         if cur is None or score > cur[0]:
             best[module] = (score, version, text)
