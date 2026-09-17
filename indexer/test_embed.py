@@ -1,4 +1,6 @@
 # indexer/test_embed.py
+import json
+
 import numpy as np
 import pytest
 
@@ -46,3 +48,49 @@ def test_embed_stale_index_guard(tmp_path):
     write_state(state_dir, next_row=0, sha="deadbeef")  # 与现库不符
     with pytest.raises(embed_mod.StaleIndexError):
         embed_mod.embed(index_dir, state_dir, FakeEmbedder())
+
+
+def test_embed_rebuilds_npy_when_missing_despite_checkpoint(tmp_path):
+    mods = {"a/x": ("1.0.0", ["ax"]), "b/y": ("2.0.0", ["by1", "by2"])}
+    index_dir, state_dir = build_index(tmp_path, mods)
+
+    # checkpoint 声称已提交 3 行，但 vectors.npy 不存在：索引不一致，
+    # embed 不得信任 checkpoint —— 必须全量重建 npy（安全且收敛的方向）
+    write_state(state_dir, next_row=3, sha=chunks_sha(index_dir))
+
+    fake = FakeEmbedder()
+    st = embed_mod.embed(index_dir, state_dir, fake)
+    assert st.chunks_done == 3 and st.skipped == 0  # 不是全部 skip
+    v = np.load(index_dir / "vectors.npy")
+    assert v.shape == (3, 4)
+    np.testing.assert_allclose(v, FakeEmbedder().embed(["ax", "by1", "by2"]), atol=1e-6)
+    state_after = json.loads((state_dir / "index_state.json").read_text())
+    assert state_after["next_row"] == 3
+    assert set(state_after["modules"]) == {"a/x", "b/y"}
+
+
+def test_embed_rejects_negative_checkpoint(tmp_path):
+    index_dir, state_dir = build_index(tmp_path, {"a/x": ("1.0.0", ["ax"])})
+    write_state(state_dir, next_row=-1, sha=chunks_sha(index_dir))
+    with pytest.raises(embed_mod.StaleIndexError):
+        embed_mod.embed(index_dir, state_dir, FakeEmbedder())
+
+
+def test_embed_trusts_short_npy_and_rebuilds_the_rest(tmp_path):
+    mods = {"a/x": ("1.0.0", ["ax"]), "b/y": ("2.0.0", ["by1", "by2"])}
+    index_dir, state_dir = build_index(tmp_path, mods)
+
+    fake = FakeEmbedder()
+    st = embed_mod.embed(index_dir, state_dir, fake)
+    assert st.chunks_done == 3
+
+    # 模拟崩溃使 npy 比 checkpoint 声称的行数短：embed 必须保留已提交前缀、只重建缺失行
+    np.save(index_dir / "vectors.npy", np.load(index_dir / "vectors.npy")[:1])
+    fake2 = FakeEmbedder()
+    st2 = embed_mod.embed(index_dir, state_dir, fake2)
+    assert st2.skipped == 1 and st2.chunks_done == 2
+    v2 = np.load(index_dir / "vectors.npy")
+    assert v2.shape == (3, 4)
+    np.testing.assert_allclose(v2, FakeEmbedder().embed(["ax", "by1", "by2"]), atol=1e-6)
+    # 第 0 行（已提交前缀）未被重写：仍与 a/x 提交向量一致（容差内）
+    np.testing.assert_allclose(v2[0], FakeEmbedder().embed(["ax"])[0], atol=1e-6)

@@ -66,6 +66,11 @@ def embed(index_dir: Path, state_dir: Path, embedder) -> EmbedStats:
             "delete index/vectors.npy and state/index_state.json, then re-run embed"
         )
     next_row = int(state.get("next_row") or 0) if state is not None else 0
+    if next_row < 0:
+        raise StaleIndexError(
+            f"corrupt checkpoint: next_row={next_row} is negative; "
+            "delete index/vectors.npy and state/index_state.json, then re-run embed"
+        )
 
     vectors_path = index_dir / "vectors.npy"
     vecs = None
@@ -77,6 +82,10 @@ def embed(index_dir: Path, state_dir: Path, embedder) -> EmbedStats:
             vecs = vecs[:next_row]  # rollback a half-written module
         elif len(vecs) < next_row:
             next_row = len(vecs)  # defensive: trust the npy, not the state
+    elif next_row > 0:
+        # Checkpoint claims committed rows, but vectors.npy is gone: the index is
+        # inconsistent — rebuild it in full (the safe, converging direction).
+        next_row = 0
 
     stats = EmbedStats(0, 0, 0)
     modules: dict = {}
