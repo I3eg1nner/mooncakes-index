@@ -1,4 +1,5 @@
 # indexer/collect.py
+import argparse
 import json
 import re
 import sqlite3
@@ -184,3 +185,18 @@ def collect(corpus_dir: Path, index_dir: Path, state_dir: Path, *, fetch_registr
     stats.chunks = len(rows)
     print(f"readme: {stats.with_readme}/{stats.modules}, mbti: {stats.with_mbti}/{stats.modules}")
     return stats
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(
+        prog="python3 -m indexer.collect",
+        description="Scan the corpus and rebuild index chunks.db + packages.jsonl")
+    ap.add_argument("--corpus", type=Path, default=Path("corpus"))
+    ap.add_argument("--out", type=Path, default=Path("index"))
+    ap.add_argument("--state", type=Path, default=Path("state"))
+    args = ap.parse_args(argv)
+    print(collect(args.corpus, args.out, args.state))
+
+
+if __name__ == "__main__":
+    main()

@@ -4,7 +4,9 @@ import json
 import numpy as np
 import pytest
 
+from indexer import api as api_mod
 from indexer import embed as embed_mod
+from indexer.api import MissingKeyError
 from indexer.testing import FakeEmbedder, build_index, chunks_sha, write_state
 
 
@@ -94,3 +96,16 @@ def test_embed_trusts_short_npy_and_rebuilds_the_rest(tmp_path):
     np.testing.assert_allclose(v2, FakeEmbedder().embed(["ax", "by1", "by2"]), atol=1e-6)
     # 第 0 行（已提交前缀）未被重写：仍与 a/x 提交向量一致（容差内）
     np.testing.assert_allclose(v2[0], FakeEmbedder().embed(["ax"])[0], atol=1e-6)
+
+
+def test_main_embed_offline(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("ZHIPUAI_API_KEY", raising=False)
+    index_dir, state_dir = build_index(tmp_path, {"a/x": ("1.0.0", ["ax"])})
+    real = api_mod.GlmEmbedder
+    monkeypatch.setattr(api_mod, "GlmEmbedder", FakeEmbedder)
+    embed_mod.main(["--index", str(index_dir), "--state", str(state_dir)])
+    assert "EmbedStats(modules_done=1, chunks_done=1, skipped=0)" in capsys.readouterr().out
+    assert np.load(index_dir / "vectors.npy").shape == (1, 4)
+    monkeypatch.setattr(api_mod, "GlmEmbedder", real)
+    with pytest.raises(MissingKeyError, match="ZHIPUAI_API_KEY"):
+        embed_mod.main(["--index", str(index_dir), "--state", str(state_dir)])

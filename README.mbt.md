@@ -82,14 +82,15 @@ The crawled corpus can be turned into a semantic search index: each package's me
 Build the corpus first (see [Crawl the registry](#crawl-the-registry)), then index and search it:
 
 ```bash
-python3 -c "from pathlib import Path; from indexer.collect import collect; collect(Path('corpus'), Path('index'), Path('state'))"
-python3 -c "from pathlib import Path; from indexer.embed import embed; from indexer.api import GlmEmbedder; embed(Path('index'), Path('state'), GlmEmbedder())"
+python3 -m indexer.collect
+python3 -m indexer.embed
 python3 -m indexer.search "jmes" -n 5
 python3 -m indexer.serve --port 8765
 ```
 
 Useful flags:
 
+- `indexer.collect` accepts `--corpus/--out/--state` (defaults `corpus/`, `index/`, `state/`); `indexer.embed` accepts `--index/--state` (defaults `index/`, `state/`)
 - `--verdict clean` on `indexer.search` — only packages whose audit verdict matches (case-insensitive); `--json` for machine-readable output
 - `indexer.serve` also accepts `--open` to launch the local web UI in a browser
 - `embed` checkpoints after every module in `state/index_state.json`, so an interrupted run resumes where it left off

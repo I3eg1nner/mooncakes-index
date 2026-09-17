@@ -9,6 +9,7 @@ interrupted run can resume. A chunks.db that no longer matches the
 checkpointed chunks_sha (collect was re-run) raises StaleIndexError: the
 index must be rebuilt from scratch.
 """
+import argparse
 import hashlib
 import itertools
 import json
@@ -118,3 +119,18 @@ def embed(index_dir: Path, state_dir: Path, embedder) -> EmbedStats:
         stats.chunks_done += len(grp)
         stats.modules_done += 1
     return stats
+
+
+def main(argv=None):
+    from indexer.api import GlmEmbedder
+    ap = argparse.ArgumentParser(
+        prog="python3 -m indexer.embed",
+        description="Embed un-embedded index chunks with GLM embedding-3 (resumable)")
+    ap.add_argument("--index", type=Path, default=Path("index"))
+    ap.add_argument("--state", type=Path, default=Path("state"))
+    args = ap.parse_args(argv)
+    print(embed(args.index, args.state, GlmEmbedder()))
+
+
+if __name__ == "__main__":
+    main()
