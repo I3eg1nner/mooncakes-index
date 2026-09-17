@@ -590,6 +590,7 @@ git commit -m "feat: local web UI for semantic search (stdlib http.server)"
 ```python
 # indexer/test_golden.py
 import os
+from pathlib import Path
 import pytest
 from indexer import api, collect, embed, search
 

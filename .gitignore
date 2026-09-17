@@ -10,4 +10,5 @@ state/
 .superpowers/
 __pycache__/
 *.pyc
+.env
 index/
