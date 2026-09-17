@@ -75,6 +75,28 @@ Crawl progress is checkpointed in `state/crawl_state.json`. Re-running the same 
 
 `state/`, `corpus/`, `results/` and `.repos/` are gitignored.
 
+## Semantic index
+
+The crawled corpus can be turned into a semantic search index: each package's metadata, README and `.mbti` signatures are chunked into `index/chunks.db` (SQLite), embedded with GLM `embedding-3` (1024 dims) into `index/vectors.npy`, and searchable by natural-language query with audit verdicts joined in. Embedding requires `ZHIPUAI_API_KEY` (https://open.bigmodel.cn).
+
+Build the corpus first (see [Crawl the registry](#crawl-the-registry)), then index and search it:
+
+```bash
+python3 -c "from pathlib import Path; from indexer.collect import collect; collect(Path('corpus'), Path('index'), Path('state'))"
+python3 -c "from pathlib import Path; from indexer.embed import embed; from indexer.api import GlmEmbedder; embed(Path('index'), Path('state'), GlmEmbedder())"
+python3 -m indexer.search "jmes" -n 5
+python3 -m indexer.serve --port 8765
+```
+
+Useful flags:
+
+- `--verdict clean` on `indexer.search` — only packages whose audit verdict matches (case-insensitive); `--json` for machine-readable output
+- `indexer.serve` also accepts `--open` to launch the local web UI in a browser
+- `embed` checkpoints after every module in `state/index_state.json`, so an interrupted run resumes where it left off
+- Re-running `collect` rebuilds `chunks.db` in full and invalidates old vectors (stale-index guard) — re-run `embed` after refreshing the corpus
+
+`index/` is gitignored.
+
 ## Development
 
 - Engine: MoonBit under `engine/`, `metadata/`, `cmd/` — `moon test` runs the rule and canary-package suites
