@@ -139,9 +139,20 @@ def collect(corpus_dir: Path, index_dir: Path, state_dir: Path, *, fetch_registr
         if not isinstance(keywords, list):
             keywords = []
         meta_text = f"{name} {version}\n{description}\nkeywords: {', '.join(map(str, keywords))}"
-        if "jq" in name.rsplit("/", 1)[-1].lower():
-            meta_text = ("Alias: JMESPath-family JSON query processor (jq-compatible; implements the jq query language)"
-                         "\n" + meta_text)
+        segment = name.rsplit("/", 1)[-1]
+        if "jq" in segment.lower():
+            alias = "Alias: JMESPath-family JSON query processor (jq-compatible; implements the jq query language)"
+            if not re.search(r"(?i)(^|[-_])jq([-_]|$)", segment):
+                hit = re.search(r"(?i)jq", segment)
+                before, after = segment[: hit.start()].lower(), segment[hit.end():].lower()
+                if before and after:
+                    parts = f'"{before}" + jq + "{after}"'
+                elif before:
+                    parts = f'"{before}" + jq'
+                else:
+                    parts = f'"jq" + "{after}"'
+                alias += f'. Module name "{segment}" = {parts}: a jq implementation.'
+            meta_text = alias + "\n" + meta_text
         rows = [(name, version, "meta", None, meta_text)]
         readme_raw = pick_readme(module_dir)
         readme_text = ""

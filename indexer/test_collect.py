@@ -107,6 +107,19 @@ def test_jq_family_meta_alias(tmp_path):
         "Alias: JMESPath-family JSON query processor (jq-compatible; implements the jq query language)")
 
 
+def test_embedded_jq_name_decomposition(tmp_path):
+    corpus = tmp_path / "corpus"
+    make_pkg(corpus, "a/moonjq", "1.0.0", None, {})
+    make_pkg(corpus, "b/jq", "2.0.0", None, {})
+    collect(corpus, tmp_path / "index", tmp_path, fetch_registry=lambda: [])
+    rows = dict(sqlite3.connect(tmp_path / "index/chunks.db").execute(
+        "SELECT module, text FROM chunks WHERE chunk_type = 'meta'").fetchall())
+    assert 'Module name "moonjq" = "moon" + jq' in rows["a/moonjq"]
+    assert "Module name" not in rows["b/jq"]
+    assert rows["b/jq"].startswith(
+        "Alias: JMESPath-family JSON query processor (jq-compatible; implements the jq query language)")
+
+
 def test_tiny_chunks_dropped(tmp_path, capsys):
     corpus = tmp_path / "corpus"
     make_pkg(corpus, "a/m1", "0.1.0", None, {"tiny": "abcde", "big": "x" * 100})
