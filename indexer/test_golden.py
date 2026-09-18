@@ -8,7 +8,8 @@ from indexer.collect import collect
 from indexer.embed import embed
 
 pytestmark = pytest.mark.skipif(
-    not os.environ.get("ZHIPUAI_API_KEY"), reason="needs ZHIPUAI_API_KEY")
+    not (os.environ.get("ZHIPUAI_API_KEY") or os.environ.get("API_KEY")),
+    reason="needs ZHIPUAI_API_KEY (or API_KEY)")
 
 
 def test_golden_jmes(tmp_path):
