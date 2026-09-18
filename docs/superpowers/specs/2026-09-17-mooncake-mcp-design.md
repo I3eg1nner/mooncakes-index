@@ -84,7 +84,7 @@ indexer/
 
 - **stdio（默认）**：`python3 -m indexer.mcp_server`
 - **Streamable-HTTP**：`python3 -m indexer.mcp_server --http --port 8000`（本地验证用；HF Spaces 部署在后续 spec 复用同一入口）
-- 配置经环境变量：`INDEXER_INDEX_DIR`（默认 `index`）、`INDEXER_RESULTS_PATH`（默认 `results/results.jsonl`）；GLM key 沿用 api.py 现有映射（`ZHIPUAI_API_KEY` 或 `API_KEY`）
+- 配置经环境变量：`INDEXER_INDEX_DIR`（默认 `index`）、`INDEXER_RESULTS_PATH`（默认 `results/results.jsonl`）、`INDEXER_REGISTRY_PATH`（默认 `state/registry_index.json`，get_module 与 description 修正共用）；GLM key 沿用 api.py 现有映射（`ZHIPUAI_API_KEY` 或 `API_KEY`）
 
 ## 6. 依赖
 
