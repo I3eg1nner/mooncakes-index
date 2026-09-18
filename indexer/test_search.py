@@ -1,12 +1,13 @@
 # indexer/test_search.py
 import json
+import sqlite3
 
 import numpy as np
 import pytest
 
 import indexer.search as search
 from indexer.search import load_verdicts
-from indexer.testing import FakeEmbedder, build_index
+from indexer.testing import FakeEmbedder, build_index, write_results
 
 
 def test_load_verdicts_missing_and_present(tmp_path):
@@ -86,3 +87,24 @@ def test_meta_chunk_boosted_in_aggregation(tmp_path):
     assert hits[0].module == "a/mod" and hits[1].module == "b/mod"
     assert hits[0].score == pytest.approx(1.0 * search.META_BOOST, abs=1e-6)
     assert hits[1].score < hits[0].score
+
+
+def test_description_prefers_registry(tmp_path):
+    # build_index(tmp_path) 无 modules 时返回单个 index_dir（STUB_CORPUS 桩索引）
+    index_dir = build_index(tmp_path)
+    results_path = write_results(tmp_path)
+    first = sqlite3.connect(index_dir / "chunks.db").execute(
+        "SELECT module FROM chunks ORDER BY id LIMIT 1").fetchone()[0]
+    reg = tmp_path / "registry.json"
+    reg.write_text(json.dumps([{"name": first, "description": "REGISTRY DESC"}]))
+
+    kw = dict(n=5, verdict=None, index_dir=index_dir,
+              results_path=results_path, embedder=FakeEmbedder())
+
+    hits = search.search("jmes", registry_path=reg, **kw)
+    hit = next(h for h in hits if h.module == first)
+    assert hit.description == "REGISTRY DESC"
+
+    hits_none = search.search("jmes", registry_path=None, **kw)
+    hit_none = next(h for h in hits_none if h.module == first)
+    assert hit_none.description != "REGISTRY DESC"  # 回退块文本
