@@ -49,9 +49,12 @@ def _l2norm(v: np.ndarray) -> np.ndarray:
 
 class GlmEmbedder(Embedder):
     def __init__(self, dims: int = 1024, batch_size: int = 16, rate_limit: float = 0.5):
-        self.key = os.environ.get("ZHIPUAI_API_KEY")
+        self.key = os.environ.get("ZHIPUAI_API_KEY") or os.environ.get("API_KEY")
         if not self.key:
             raise MissingKeyError("set ZHIPUAI_API_KEY (https://open.bigmodel.cn)")
+        base = os.environ.get("ZHIPUAI_BASE_URL") or os.environ.get("Base_URL")
+        self.url = (base.rstrip("/") + "/embeddings") if base else GLM_URL
+        self.model = os.environ.get("ZHIPUAI_MODEL") or os.environ.get("Model") or "embedding-3"
         self.dims, self.batch_size, self.rate_limit = dims, batch_size, rate_limit
         self._last = 0.0
 
@@ -64,8 +67,8 @@ class GlmEmbedder(Embedder):
                 time.sleep(wait)
             self._last = time.monotonic()
             resp = _post(
-                GLM_URL,
-                {"model": "embedding-3", "input": batch, "dimensions": self.dims},
+                self.url,
+                {"model": self.model, "input": batch, "dimensions": self.dims},
                 self.key,
             )
             ordered = sorted(resp["data"], key=lambda d: d["index"])
