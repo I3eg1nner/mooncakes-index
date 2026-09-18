@@ -34,9 +34,11 @@ def test_chunk_readme_sections_and_cap():
 
 def test_collect_end_to_end(tmp_path):
     corpus = tmp_path / "corpus"
-    make_pkg(corpus, "bobzhang/moonjq", "0.1.2", "# moonjq\nA jq implementation", {"": "fn query(...)"})
+    make_pkg(corpus, "bobzhang/moonjq", "0.1.2", "# moonjq\nA jq implementation", {"": "fn query(...) — a jq-family JSON query processor implementation"})
     make_pkg(corpus, "empty/noreadme", "0.1.0", None, {})
-    stats = collect(corpus, tmp_path / "index", tmp_path, fetch_registry=lambda: [])
+    stats = collect(corpus, tmp_path / "index", tmp_path, fetch_registry=lambda: [
+        {"name": "bobzhang/moonjq", "version": "0.1.2",
+         "description": "A jq implementation in MoonBit", "keywords": ["jq", "json", "query"]}])
     assert stats.modules == 2 and stats.with_readme == 1 and stats.with_mbti == 1
     rows = sqlite3.connect(tmp_path / "index/chunks.db").execute(
         "SELECT module, chunk_type FROM chunks ORDER BY id").fetchall()
@@ -47,7 +49,8 @@ def test_collect_end_to_end(tmp_path):
 def test_main_collect_offline(tmp_path, monkeypatch, capsys):
     monkeypatch.delenv("ZHIPUAI_API_KEY", raising=False)
     make_pkg(tmp_path / "corpus", "bobzhang/moonjq", "0.1.2",
-             "# moonjq\nA jq implementation", {"": "fn query(...)"})
+             "# moonjq\n" + "A jq implementation in MoonBit\n" * 3,
+             {"": "fn query(...) — a jq-family JSON query processor implementation"})
     state = tmp_path / "state"
     state.mkdir()
     (state / "registry_index.json").write_text(
@@ -66,12 +69,19 @@ def test_boilerplate_chunks_demoted(tmp_path, monkeypatch):
     monkeypatch.setattr(collect_mod, "BOILERPLATE_MIN_MODULES", 2)
     corpus = tmp_path / "corpus"
     shared = "# Shared\n" + ("same boilerplate line\n" * 30)
+    registry = [
+        {"name": "a/m1", "version": "0.1.0", "description": "d" * 30, "keywords": ["k"]},
+        {"name": "a/m2", "version": "0.2.0", "description": "d" * 30, "keywords": ["k"]},
+        {"name": "b/m3", "version": "0.3.0", "description": "d" * 30, "keywords": ["k"]},
+        {"name": "b/u1", "version": "0.4.0", "description": "d" * 30, "keywords": ["k"]},
+        {"name": "b/u2", "version": "0.5.0", "description": "d" * 30, "keywords": ["k"]},
+    ]
     make_pkg(corpus, "a/m1", "0.1.0", shared, {})
     make_pkg(corpus, "a/m2", "0.2.0", shared, {})
     make_pkg(corpus, "b/m3", "0.3.0", shared, {})
-    make_pkg(corpus, "b/u1", "0.4.0", "# U1\nunique text one", {})
-    make_pkg(corpus, "b/u2", "0.5.0", "# U2\nunique text two", {})
-    stats = collect(corpus, tmp_path / "index", tmp_path, fetch_registry=lambda: [])
+    make_pkg(corpus, "b/u1", "0.4.0", "# U1\nunique text one " + "x" * 30, {})
+    make_pkg(corpus, "b/u2", "0.5.0", "# U2\nunique text two " + "x" * 30, {})
+    stats = collect(corpus, tmp_path / "index", tmp_path, fetch_registry=lambda: registry)
     assert stats.modules == 5 and stats.with_readme == 5
     conn = sqlite3.connect(tmp_path / "index/chunks.db")
     assert conn.execute(
@@ -92,4 +102,21 @@ def test_jq_family_meta_alias(tmp_path):
     collect(corpus, tmp_path / "index", tmp_path, fetch_registry=lambda: [])
     row = sqlite3.connect(tmp_path / "index/chunks.db").execute(
         "SELECT text FROM chunks WHERE chunk_type = 'meta'").fetchone()
-    assert row is not None and "Alias: JMESPath-family" in row[0]
+    assert row is not None
+    assert row[0].startswith(
+        "Alias: JMESPath-family JSON query processor (jq-compatible; implements the jq query language)")
+
+
+def test_tiny_chunks_dropped(tmp_path, capsys):
+    corpus = tmp_path / "corpus"
+    make_pkg(corpus, "a/m1", "0.1.0", None, {"tiny": "abcde", "big": "x" * 100})
+    registry = [{"name": "a/m1", "version": "0.1.0",
+                 "description": "d" * 30, "keywords": ["k"]}]
+    stats = collect(corpus, tmp_path / "index", tmp_path, fetch_registry=lambda: registry)
+    conn = sqlite3.connect(tmp_path / "index/chunks.db")
+    mbti_texts = [r[0] for r in conn.execute(
+        "SELECT text FROM chunks WHERE chunk_type = 'mbti'").fetchall()]
+    assert "abcde" not in mbti_texts
+    assert "x" * 100 in mbti_texts
+    assert stats.chunks == 2
+    assert "tiny: 1/3" in capsys.readouterr().out

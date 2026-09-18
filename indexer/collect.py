@@ -14,6 +14,7 @@ README_MAX_CHARS = 8192
 SECTION_SOFT_CAP = 2000
 MBTI_MAX_CHARS = 4000
 BOILERPLATE_MIN_MODULES = 20
+MIN_CHUNK_CHARS = 40
 
 _HEADING_RE = re.compile(r"^#{1,3} .*$", re.MULTILINE)
 
@@ -139,7 +140,8 @@ def collect(corpus_dir: Path, index_dir: Path, state_dir: Path, *, fetch_registr
             keywords = []
         meta_text = f"{name} {version}\n{description}\nkeywords: {', '.join(map(str, keywords))}"
         if "jq" in name.rsplit("/", 1)[-1].lower():
-            meta_text += "\nAlias: JMESPath-family JSON query processor (implements the jq query language)"
+            meta_text = ("Alias: JMESPath-family JSON query processor (jq-compatible; implements the jq query language)"
+                         "\n" + meta_text)
         rows = [(name, version, "meta", None, meta_text)]
         readme_raw = pick_readme(module_dir)
         readme_text = ""
@@ -191,11 +193,17 @@ def collect(corpus_dir: Path, index_dir: Path, state_dir: Path, *, fetch_registr
         )
         conn.execute("DROP TABLE IF EXISTS boilerplate")
         conn.execute("CREATE TABLE boilerplate(text TEXT PRIMARY KEY, modules INTEGER)")
+        total = sum(len(mod_rows) for _, mod_rows in staged)
+        tiny = 0
         rows: list[tuple[str, str, str, str | None, str]] = []
         with (index_dir / "packages.jsonl").open("w", encoding="utf-8") as out:
             for record, mod_rows in staged:
                 for row in mod_rows:
-                    if " ".join(row[4].split()) in boilerplate:
+                    norm = " ".join(row[4].split())
+                    if norm in boilerplate:
+                        continue
+                    if len(norm) < MIN_CHUNK_CHARS:
+                        tiny += 1
                         continue
                     rows.append(row)
                 out.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -211,7 +219,7 @@ def collect(corpus_dir: Path, index_dir: Path, state_dir: Path, *, fetch_registr
     finally:
         conn.close()
     stats.chunks = len(rows)
-    print(f"readme: {stats.with_readme}/{stats.modules}, mbti: {stats.with_mbti}/{stats.modules}")
+    print(f"readme: {stats.with_readme}/{stats.modules}, mbti: {stats.with_mbti}/{stats.modules}, tiny: {tiny}/{total}")
     return stats
 
 
