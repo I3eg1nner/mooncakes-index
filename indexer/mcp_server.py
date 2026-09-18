@@ -12,11 +12,13 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
+from indexer.search import REGISTRY_DEFAULT
+
 
 def _env_paths() -> tuple[Path, Path, Path]:
     return (Path(os.environ.get("INDEXER_INDEX_DIR", "index")),
             Path(os.environ.get("INDEXER_RESULTS_PATH", "results/results.jsonl")),
-            Path(os.environ.get("INDEXER_REGISTRY_PATH", "state/registry_index.json")))
+            Path(os.environ.get("INDEXER_REGISTRY_PATH", REGISTRY_DEFAULT)))
 
 
 def create_mcp(index_dir: Path | None = None, results_path: Path | None = None,

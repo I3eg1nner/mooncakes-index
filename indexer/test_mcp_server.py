@@ -2,7 +2,6 @@
 import asyncio
 import json
 import threading
-import urllib.request
 
 import pytest
 
@@ -84,6 +83,69 @@ def test_search_invalid_argument(mcp_env):
             return await s.call_tool("search_modules", {"query": "", "n": 5})
 
     assert json.loads(run(go()).content[0].text)["error"] == "invalid_argument"
+
+
+def test_search_missing_api_key(mcp_env, monkeypatch):
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    monkeypatch.delenv("ZHIPUAI_API_KEY", raising=False)
+    monkeypatch.delenv("API_KEY", raising=False)
+
+    async def go():
+        async with create_connected_server_and_client_session(mcp_server.create_mcp()) as s:
+            await s.initialize()
+            return await s.call_tool("search_modules", {"query": "jmes", "n": 5})
+
+    payload = json.loads(run(go()).content[0].text)
+    assert payload["error"] == "missing_api_key"
+    assert "ZHIPUAI_API_KEY" in payload["hint"]
+
+
+def test_search_embedder_unavailable(mcp_env):
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    class BoomEmbedder:
+        def embed(self, texts):
+            raise RuntimeError("boom")
+
+    async def go():
+        async with create_connected_server_and_client_session(
+                mcp_server.create_mcp(embedder=BoomEmbedder())) as s:
+            await s.initialize()
+            return await s.call_tool("search_modules", {"query": "jmes", "n": 5})
+
+    payload = json.loads(run(go()).content[0].text)
+    assert payload["error"] == "embedder_unavailable" and "boom" in payload["detail"]
+
+
+def test_search_index_not_built(mcp_env, monkeypatch):
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    monkeypatch.setenv("INDEXER_INDEX_DIR", str(mcp_env / "no-such-index"))
+
+    async def go():
+        async with create_connected_server_and_client_session(
+                mcp_server.create_mcp(embedder=FakeEmbedder())) as s:
+            await s.initialize()
+            return await s.call_tool("search_modules", {"query": "jmes", "n": 5})
+
+    payload = json.loads(run(go()).content[0].text)
+    assert payload["error"] == "index_not_built" and "hint" in payload
+
+
+def test_search_verdict_filter_via_mcp(mcp_env):
+    """write_results 桩已含 evil/pwn=Malicious、bobzhang/moonjq=Clean。"""
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    async def go():
+        async with create_connected_server_and_client_session(make_server()) as s:
+            await s.initialize()
+            return await s.call_tool(
+                "search_modules", {"query": "jmes", "n": 5, "verdict": "clean"})
+
+    hits = json.loads(run(go()).content[0].text)
+    assert hits and all(h["verdict"] == "Clean" for h in hits)
+    assert all(h["module"] != "evil/pwn" for h in hits)
 
 
 def test_http_transport_roundtrip(mcp_env):

@@ -20,6 +20,7 @@ import numpy as np
 
 MAX_QUERY_CHARS = 512
 META_BOOST = 1.15
+REGISTRY_DEFAULT = "state/registry_index.json"
 
 
 @dataclass
@@ -141,7 +142,7 @@ def main(argv=None):
                   index_dir=args.index_dir, results_path=args.results,
                   embedder=GlmEmbedder(),
                   registry_path=Path(os.environ.get(
-                      "INDEXER_REGISTRY_PATH", "state/registry_index.json")))
+                      "INDEXER_REGISTRY_PATH", REGISTRY_DEFAULT)))
     if args.json:
         print(json.dumps([h.__dict__ for h in hits], ensure_ascii=False))
         return

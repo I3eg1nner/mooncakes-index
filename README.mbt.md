@@ -116,11 +116,13 @@ opencode (`~/.config/opencode/opencode.json`):
   "cwd": "/path/to/mooncacke", "enabled": true}}}
 ```
 
-Claude Desktop (`claude_desktop_config.json`):
+Claude Desktop (`claude_desktop_config.json`; schema is command/args/env only —
+no `cwd` key, so use an absolute interpreter path and point `PYTHONPATH` at the repo):
 
 ```json
-{"mcpServers": {"mooncake-index": {"command": "python3",
-  "args": ["-m", "indexer.mcp_server"], "cwd": "/path/to/mooncacke"}}}
+{"mcpServers": {"mooncake-index": {"command": "/abs/path/to/venv/python",
+  "args": ["-m", "indexer.mcp_server"],
+  "env": {"PYTHONPATH": "/path/to/mooncacke"}}}}
 ```
 
 Tools: `search_modules(query, n, verdict)` — semantic search with audit verdicts;
