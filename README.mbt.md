@@ -98,6 +98,36 @@ Useful flags:
 
 `index/` is gitignored.
 
+## MCP server
+
+Expose the semantic index to LLM agents (Model Context Protocol):
+
+```bash
+pip install -r requirements.txt
+python3 -m indexer.mcp_server                 # stdio (default)
+python3 -m indexer.mcp_server --http --port 8000
+```
+
+opencode (`~/.config/opencode/opencode.json`):
+
+```json
+{"mcp": {"mooncake-index": {"type": "local",
+  "command": ["python3", "-m", "indexer.mcp_server"],
+  "cwd": "/path/to/mooncacke", "enabled": true}}}
+```
+
+Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{"mcpServers": {"mooncake-index": {"command": "python3",
+  "args": ["-m", "indexer.mcp_server"], "cwd": "/path/to/mooncacke"}}}
+```
+
+Tools: `search_modules(query, n, verdict)` — semantic search with audit verdicts;
+`get_module(name)` — full judgment payload (findings, API surface, README summary).
+Env: `INDEXER_INDEX_DIR`, `INDEXER_RESULTS_PATH`, `INDEXER_REGISTRY_PATH`, key via
+`ZHIPUAI_API_KEY`/`API_KEY` (search only; `get_module` works without a key).
+
 ## Development
 
 - Engine: MoonBit under `engine/`, `metadata/`, `cmd/` — `moon test` runs the rule and canary-package suites
