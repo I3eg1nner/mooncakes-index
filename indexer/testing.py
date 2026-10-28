@@ -2,13 +2,15 @@
 """Shared test fixtures for the indexer package.
 
 Home of the deterministic FakeEmbedder and the index/state builders.
-test_embed.py uses them today; Tasks 4-6 import from here as well.
+test_embed/test_search/serve tests import from here.
 """
 import hashlib
 import json
 import sqlite3
 
 import numpy as np
+
+from indexer.collect import chunk_hash
 
 # Stub corpus used by build_index(tmp_path) (no modules given): a clean
 # module whose chunks mention "jmes"/"jq" plus a malicious one, so serve/
@@ -58,13 +60,21 @@ def _write_index(tmp_path, modules, with_vectors):
     state_dir = tmp_path / "state"
     state_dir.mkdir()
     db = sqlite3.connect(index_dir / "chunks.db")
-    db.execute("CREATE TABLE chunks(id INTEGER PRIMARY KEY, module TEXT, version TEXT,"
-               " chunk_type TEXT, label TEXT, text TEXT)")
+    db.execute("CREATE TABLE chunks(id INTEGER PRIMARY KEY, chunk_hash TEXT NOT NULL"
+               " UNIQUE, module TEXT, version TEXT, chunk_type TEXT, label TEXT,"
+               " text TEXT)")
+    db.execute("CREATE TABLE vecrows(chunk_hash TEXT PRIMARY KEY,"
+               " row INTEGER NOT NULL UNIQUE)")
     texts_in_order = []
     for name, (version, texts) in modules.items():
         for t in texts:
-            db.execute("INSERT INTO chunks(module, version, chunk_type, label, text)"
-                       " VALUES (?,?,?,?,?)", (name, version, "meta", None, t))
+            h = chunk_hash(name, version, "meta", None, t)
+            row = len(texts_in_order)
+            db.execute("INSERT INTO chunks(chunk_hash, module, version, chunk_type,"
+                       " label, text) VALUES (?,?,?,?,?,?)",
+                       (h, name, version, "meta", None, t))
+            if with_vectors:
+                db.execute("INSERT INTO vecrows VALUES (?, ?)", (h, row))
             texts_in_order.append(t)
     db.commit()
     db.close()
@@ -73,9 +83,38 @@ def _write_index(tmp_path, modules, with_vectors):
     return index_dir, state_dir
 
 
-def write_state(state_dir, next_row, sha):
-    (state_dir / "index_state.json").write_text(json.dumps(
-        {"chunks_sha": sha, "next_row": next_row, "modules": {}}))
+def attach_vectors(index_dir, embedder=None):
+    """为无向量的测试索引补写 vectors.npy 并按 id 顺序登记 vecrows。"""
+    import sqlite3
+    embedder = embedder or FakeEmbedder()
+    db = sqlite3.connect(index_dir / "chunks.db")
+    rows = db.execute(
+        "SELECT chunk_hash, text FROM chunks ORDER BY id").fetchall()
+    db.execute("DELETE FROM vecrows")
+    db.executemany("INSERT INTO vecrows VALUES (?, ?)",
+                   [(h, i) for i, (h, _) in enumerate(rows)])
+    db.commit()
+    db.close()
+    np.save(index_dir / "vectors.npy",
+            embedder.embed([t for _, t in rows]))
+
+
+def rewrite_chunks(index_dir, modules):
+    """Simulate a fresh collect(): rebuild the chunks table for `modules`,
+    preserving the content-addressed hashes; vecrows is left untouched."""
+    db = sqlite3.connect(index_dir / "chunks.db")
+    db.execute("DROP TABLE IF EXISTS chunks")
+    db.execute("CREATE TABLE chunks(id INTEGER PRIMARY KEY, chunk_hash TEXT NOT NULL"
+               " UNIQUE, module TEXT, version TEXT, chunk_type TEXT, label TEXT,"
+               " text TEXT)")
+    for name, (version, texts) in modules.items():
+        for t in texts:
+            db.execute("INSERT INTO chunks(chunk_hash, module, version, chunk_type,"
+                       " label, text) VALUES (?,?,?,?,?,?)",
+                       (chunk_hash(name, version, "meta", None, t),
+                        name, version, "meta", None, t))
+    db.commit()
+    db.close()
 
 
 def write_results(tmp_path):
@@ -89,7 +128,3 @@ def write_results(tmp_path):
         "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records),
         encoding="utf-8")
     return path
-
-
-def chunks_sha(index_dir):
-    return hashlib.sha256((index_dir / "chunks.db").read_bytes()).hexdigest()

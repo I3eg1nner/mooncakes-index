@@ -1,5 +1,6 @@
 # indexer/collect.py
 import argparse
+import hashlib
 import json
 import re
 import sqlite3
@@ -9,6 +10,17 @@ from pathlib import Path
 from typing import Callable
 
 from crawl.registry import fetch_module_index
+
+
+def chunk_hash(module: str, version: str, chunk_type: str,
+               label: str | None, text: str) -> str:
+    """Content-address of a chunk; stable across collect rebuilds."""
+    h = hashlib.sha256()
+    for part in (module, version, chunk_type, label or "", text):
+        h.update(part.encode("utf-8"))
+        h.update(b"\0")
+    return h.hexdigest()
+
 
 README_MAX_CHARS = 8192
 SECTION_SOFT_CAP = 2000
@@ -121,7 +133,9 @@ def _registry_dict(entries) -> dict[str, dict]:
 def _iter_module_dirs(corpus_dir: Path):
     for author_dir in sorted(p for p in corpus_dir.iterdir() if p.is_dir()):
         for module_dir in sorted(p for p in author_dir.iterdir() if p.is_dir()):
-            if (module_dir / "moon.mod").is_file():
+            if (module_dir / "moon.mod").is_file() or (
+                module_dir / "moon.mod.json"
+            ).is_file():
                 yield module_dir
 
 
@@ -196,6 +210,7 @@ def collect(corpus_dir: Path, index_dir: Path, state_dir: Path, *, fetch_registr
         conn.execute(
             "CREATE TABLE chunks("
             "id INTEGER PRIMARY KEY, "
+            "chunk_hash TEXT NOT NULL UNIQUE, "
             "module TEXT NOT NULL, "
             "version TEXT NOT NULL, "
             "chunk_type TEXT NOT NULL, "
@@ -219,8 +234,11 @@ def collect(corpus_dir: Path, index_dir: Path, state_dir: Path, *, fetch_registr
                     rows.append(row)
                 out.write(json.dumps(record, ensure_ascii=False) + "\n")
         conn.executemany(
-            "INSERT INTO chunks(module, version, chunk_type, label, text) VALUES (?, ?, ?, ?, ?)",
-            rows,
+            "INSERT OR IGNORE INTO chunks(chunk_hash, module, version, chunk_type,"
+            " label, text) VALUES (?, ?, ?, ?, ?, ?)",
+            [(chunk_hash(name, version, ctype, label, text),
+              name, version, ctype, label, text)
+             for (name, version, ctype, label, text) in rows],
         )
         conn.executemany(
             "INSERT INTO boilerplate(text, modules) VALUES (?, ?)",

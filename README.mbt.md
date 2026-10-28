@@ -1,136 +1,53 @@
-# mooncake-audit
+# mooncacke — mooncakes.io corpus, audit results & semantic index
 
-Supply-chain security auditor for [mooncakes.io](https://mooncakes.io) packages, written in MoonBit with a Python crawl orchestrator.
+Data-side companion to [mooncake-audit](../mooncake-audit) (the MoonBit detector engine, now a standalone repository). This repo keeps:
 
-A native scan engine statically analyzes package sources and manifests for typo-squatting, prebuild/install hooks, network/process/file-system abuse and obfuscation, and emits per-module findings with a risk score and verdict (Malicious / Suspicious / Clean).
+- **Crawl orchestrator** (`crawl/`) — downloads packages from mooncakes.io (rate-limited, zip-slip-safe), scans each with the detector engine binary, appends results
+- **Audit results** (`results/`) — per-module JSONL reports and grouped summaries
+- **Semantic index** (`indexer/`) — chunks package metadata/README/.mbti into SQLite, embeds with GLM `embedding-3` (1024 dims, content-addressed & incremental), natural-language search with audit verdicts joined, MCP server for LLM agents
 
-## Build
+## Engine
 
-Requires the MoonBit toolchain (`moon`) and Python 3.10+.
-
-```bash
-moon check
-moon test
-moon build --target native --release
-```
-
-The engine binary lands at `_build/native/release/build/cmd/main/main.exe`.
-
-```text
-usage: mooncake-audit scan <dir> [--module m] [--version v] [--hotlist file] [--json] [--min-severity low|medium|high|critical]
-```
-
-## Scan a single package
+The scan engine now lives in its own repo (GitHub-ready: CI, canaries, rule catalog, SARIF output). Build it there first:
 
 ```bash
-moon build --target native --release
+git clone <mooncake-audit repo> /tmp/mooncake-audit
+cd /tmp/mooncake-audit && moon build --target native --release
 ENGINE=$(find _build/native/release -type f -executable | head -1)
-mkdir -p /tmp/pkg && unzip moonkafka-0.2.1.zip -d /tmp/pkg
-"$ENGINE" scan /tmp/pkg --module daqing/moonkafka --version 0.2.1 --json
 ```
-
-`--json` prints one machine-readable report; omit it for a human-readable summary. `--min-severity` filters noise, e.g. `--min-severity high`.
 
 ## Crawl the registry
 
-The Python orchestrator downloads packages from mooncakes.io (rate-limited, zip-slip-safe extraction), scans each with the engine, and appends results.
-
-Build the hotlist first — the top-N most prominent modules, used by the engine's typo-squatting rules:
-
 ```bash
 python3 -m crawl.hotlist --out state/hotlist.txt --top 100
-```
-
-Sampled pilot run (first 50 modules of the registry index):
-
-```bash
-python3 -m crawl.crawl --engine "$ENGINE" --modules sample:50
-python3 -c "from crawl.report import write_summary; write_summary('results/results.jsonl','results/summary.md')"
-```
-
-Full crawl of every module in the registry:
-
-```bash
 python3 -m crawl.crawl --engine "$ENGINE" --modules all
 python3 -c "from crawl.report import write_summary; write_summary('results/results.jsonl','results/summary.md')"
 ```
 
-Useful flags:
-
-- `--modules all | sample:N | file:LIST` — module selection (`file:` filters the index to names listed in a file)
-- `--hotlist state/hotlist.txt` — typo-squat target list passed to the engine (default)
-- `--workers N --rate SECONDS` — parallelism and per-request rate limit
-- `--state/--corpus/--results` — state file, package cache and output paths (defaults under `state/`, `corpus/`, `results/`)
-
-Only each module's latest version is scanned in v1 (`--all-versions` is a possible future extension).
-
-### Resuming
-
-Crawl progress is checkpointed in `state/crawl_state.json`. Re-running the same command skips modules already marked done, so a full crawl interrupted midway resumes where it left off. Delete the state file to start over.
-
-### Artifacts
-
-- `results/results.jsonl` — one JSON report per module (verdict, risk score, findings)
-- `results/summary.md` — grouped summary: Malicious / Suspicious / Error counts with per-module findings, Clean count
-
-`state/`, `corpus/`, `results/` and `.repos/` are gitignored.
+Resumable via `state/crawl_state.json`; `--modules all|sample:N|file:LIST`.
 
 ## Semantic index
 
-The crawled corpus can be turned into a semantic search index: each package's metadata, README and `.mbti` signatures are chunked into `index/chunks.db` (SQLite), embedded with GLM `embedding-3` (1024 dims) into `index/vectors.npy`, and searchable by natural-language query with audit verdicts joined in. Embedding requires `ZHIPUAI_API_KEY` (https://open.bigmodel.cn).
-
-Build the corpus first (see [Crawl the registry](#crawl-the-registry)), then index and search it:
-
 ```bash
 python3 -m indexer.collect
-python3 -m indexer.embed
+python3 -m indexer.embed          # incremental: only new/changed chunks
 python3 -m indexer.search "jmes" -n 5
 python3 -m indexer.serve --port 8765
 ```
 
-Useful flags:
-
-- `indexer.collect` accepts `--corpus/--out/--state` (defaults `corpus/`, `index/`, `state/`); `indexer.embed` accepts `--index/--state` (defaults `index/`, `state/`)
-- `--verdict clean` on `indexer.search` — only packages whose audit verdict matches (case-insensitive); `--json` for machine-readable output
-- `indexer.serve` also accepts `--open` to launch the local web UI in a browser
-- `embed` checkpoints after every module in `state/index_state.json`, so an interrupted run resumes where it left off
-- Re-running `collect` rebuilds `chunks.db` in full and invalidates old vectors (stale-index guard) — re-run `embed` after refreshing the corpus
-
-`index/` is gitignored.
+Embedding needs `ZHIPUAI_API_KEY`/`API_KEY` (+ optional `Base_URL`/`Model`) in `.env`. Embeddings are content-addressed (chunk sha256) — re-running collect+embed after a corpus update costs only the new chunks.
 
 ## MCP server
 
-Expose the semantic index to LLM agents (Model Context Protocol):
-
 ```bash
 pip install -r requirements.txt
-python3 -m indexer.mcp_server                 # stdio (default)
+python3 -m indexer.mcp_server            # stdio
 python3 -m indexer.mcp_server --http --port 8000
 ```
 
-opencode (`~/.config/opencode/opencode.json`):
-
-```json
-{"mcp": {"mooncake-index": {"type": "local",
-  "command": ["python3", "-m", "indexer.mcp_server"],
-  "cwd": "/path/to/mooncacke", "enabled": true}}}
-```
-
-Claude Desktop (`claude_desktop_config.json`; schema is command/args/env only —
-no `cwd` key, so use an absolute interpreter path and point `PYTHONPATH` at the repo):
-
-```json
-{"mcpServers": {"mooncake-index": {"command": "/abs/path/to/venv/python",
-  "args": ["-m", "indexer.mcp_server"],
-  "env": {"PYTHONPATH": "/path/to/mooncacke"}}}}
-```
-
-Tools: `search_modules(query, n, verdict)` — semantic search with audit verdicts;
-`get_module(name)` — full judgment payload (findings, API surface, README summary).
-Env: `INDEXER_INDEX_DIR`, `INDEXER_RESULTS_PATH`, `INDEXER_REGISTRY_PATH`, key via
-`ZHIPUAI_API_KEY`/`API_KEY` (search only; `get_module` works without a key).
+Tools: `search_modules(query, n, verdict)`, `get_module(name)`.
 
 ## Development
 
-- Engine: MoonBit under `engine/`, `metadata/`, `cmd/` — `moon test` runs the rule and canary-package suites
-- Orchestrator: `crawl/` — `python3 -m pytest crawl/ -v`
+- `python3 -m pytest crawl/ indexer/ -v`
+- `state/`, `corpus/`, `results/`, `index/`, `.repos/` are gitignored.

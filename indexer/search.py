@@ -57,10 +57,13 @@ def load_verdicts(results_path: Path) -> dict[str, dict]:
 
 
 def _load_chunks(index_dir: Path) -> list[tuple]:
+    """(module, version, chunk_type, text, row) for embedded chunks only."""
     conn = sqlite3.connect(index_dir / "chunks.db")
     try:
         return conn.execute(
-            "SELECT id, module, version, chunk_type, text FROM chunks ORDER BY id").fetchall()
+            "SELECT c.module, c.version, c.chunk_type, c.text, v.row"
+            " FROM chunks c JOIN vecrows v ON c.chunk_hash = v.chunk_hash"
+            " ORDER BY v.row").fetchall()
     finally:
         conn.close()
 
@@ -99,8 +102,7 @@ def search(query: str, *, n: int = 10, verdict: str | None, index_dir: Path,
         qv = qv / norm
 
     best: dict[str, tuple[float, str, str]] = {}
-    for cid, module, version, chunk_type, text in rows:
-        row = cid - 1  # npy row i holds the vector for chunks.id = i + 1
+    for module, version, chunk_type, text, row in rows:
         if row < 0 or row >= len(vecs):
             continue
         score = float(vecs[row] @ qv)

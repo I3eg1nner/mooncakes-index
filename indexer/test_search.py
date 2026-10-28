@@ -7,7 +7,8 @@ import pytest
 
 import indexer.search as search
 from indexer.search import load_verdicts
-from indexer.testing import FakeEmbedder, build_index, write_results
+from indexer.testing import (FakeEmbedder, attach_vectors, build_index,
+                             write_results)
 
 
 def test_load_verdicts_missing_and_present(tmp_path):
@@ -24,8 +25,7 @@ def test_search_ranks_expected_module_top(tmp_path):
         "bobzhang/moonjq": ("0.1.2", ["jq jmespath json query"]),
         "evil/pwn": ("9.9.9", ["malicious payload"]),
     })
-    np.save(index_dir / "vectors.npy", FakeEmbedder().embed(
-        ["jq jmespath json query", "malicious payload"]))
+    attach_vectors(index_dir)
 
     class QueryIsJq(FakeEmbedder):
         def embed(self, texts):
@@ -48,8 +48,7 @@ def test_search_verdict_filter(tmp_path):
         "bobzhang/moonjq": ("0.1.2", ["jq jmespath json query"]),
         "evil/pwn": ("9.9.9", ["malicious payload"]),
     })
-    np.save(index_dir / "vectors.npy", FakeEmbedder().embed(
-        ["jq jmespath json query", "malicious payload"]))
+    attach_vectors(index_dir)
     (tmp_path / "results.jsonl").write_text(json.dumps(
         {"module": "evil/pwn", "version": "9.9.9", "verdict": "Malicious", "risk": 9}) + "\n")
     hits = search.search("jmes", n=5, verdict="clean", index_dir=index_dir,
@@ -59,7 +58,7 @@ def test_search_verdict_filter(tmp_path):
 
 def test_search_rejects_bad_n(tmp_path):
     index_dir, _ = build_index(tmp_path, {"a/x": ("1.0.0", ["t"])})
-    np.save(index_dir / "vectors.npy", FakeEmbedder().embed(["t"]))
+    attach_vectors(index_dir)
     with pytest.raises(ValueError):
         search.search("t", n=0, verdict=None, index_dir=index_dir,
                       results_path=tmp_path / "r.jsonl", embedder=FakeEmbedder())
@@ -70,8 +69,7 @@ def test_meta_chunk_boosted_in_aggregation(tmp_path):
         "a/mod": ("1.0.0", ["author self description of the module"]),
         "b/mod": ("2.0.0", ["readme body text of the module"]),
     })
-    np.save(index_dir / "vectors.npy", FakeEmbedder().embed(
-        ["author self description of the module", "readme body text of the module"]))
+    attach_vectors(index_dir)
     import sqlite3 as _sq
     _db = _sq.connect(index_dir / "chunks.db")
     _db.execute("UPDATE chunks SET chunk_type = 'readme' WHERE module = 'b/mod'")
