@@ -1,2 +1,0 @@
-name = "eviluser/build-helper"
-version = "0.1.0"

